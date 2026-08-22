@@ -10,9 +10,11 @@ import SuperAdminDashboard from "./pages/superadmin/SuperAdminDashboard";
 import StaffDashboard from "./pages/staff/StaffDashboard";
 import AdminCourseForm from "./pages/admin/AdminCourseForm";
 import AdminCourseContent from "./pages/admin/AdminCourseContent";
+import AdminMockTest from "./pages/admin/AdminMockTest";
 import CourseCatalog from "./pages/student/CourseCatalog";
 import CourseDetail from "./pages/student/CourseDetail";
 import LessonView from "./pages/student/LessonView";
+import MockTestView from "./pages/student/MockTestView";
 import StudentDashboard from "./pages/student/StudentDashboard";
 import StudentProfile from "./pages/student/StudentProfile";
 
@@ -82,6 +84,14 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/admin/courses/:courseId/modules/:moduleId/mock-tests"
+            element={
+              <ProtectedRoute allowedRoles={["SUPER_ADMIN", "STAFF"]}>
+                <AdminMockTest />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Student routes */}
           <Route
@@ -103,6 +113,10 @@ function App() {
           <Route
             path="/lessons/:moduleId/:lessonId"
             element={<LessonView />}
+          />
+          <Route
+            path="/mock-tests/:mockTestId"
+            element={<MockTestView />}
           />
         </Routes>
       </BrowserRouter>

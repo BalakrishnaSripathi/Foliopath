@@ -649,6 +649,18 @@ export default function AdminCourseContent() {
                     </button>
                     <div className="flex items-center gap-2">
                       <button
+                        onClick={() =>
+                          navigate(
+                            `/admin/courses/${courseId}/modules/${mod.id}/mock-tests`
+                          )
+                        }
+                        className="text-xs font-semibold text-blue-600 hover:underline flex items-center gap-1"
+                      >
+                        <Plus className="w-3 h-3" />
+                        Mock Test
+                      </button>
+                      <span className="text-slate-300 text-xs">|</span>
+                      <button
                         onClick={() => openAddLesson(mod)}
                         className="text-xs font-semibold text-[#00A86B] hover:underline flex items-center gap-1"
                       >

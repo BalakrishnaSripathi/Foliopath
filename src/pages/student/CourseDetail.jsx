@@ -7,12 +7,14 @@ import {
   ChevronDown,
   ChevronRight,
   PlayCircle,
+  ClipboardList,
 } from "lucide-react";
 import {
   getCourseById,
   getModules,
   getLessons,
 } from "../../api/courseService";
+import { getMockTests } from "../../api/mockTestService";
 import { useAuth } from "../../context/AuthContext";
 import Header from "../../components/layout/Header";
 
@@ -29,6 +31,7 @@ export default function CourseDetail() {
   const [course, setCourse] = useState(null);
   const [modules, setModules] = useState([]);
   const [lessonsByModule, setLessonsByModule] = useState({});
+  const [mockTestsByModule, setMockTestsByModule] = useState({});
   const [loading, setLoading] = useState(true);
   const [expandedModule, setExpandedModule] = useState(null);
 
@@ -48,12 +51,22 @@ export default function CourseDetail() {
 
       const results = await Promise.all(
         mods.map((m) =>
-          getLessons(m.id)
-            .then(({ data }) => [m.id, Array.isArray(data) ? data : []])
-            .catch(() => [m.id, []])
+          Promise.all([
+            getLessons(m.id)
+              .then(({ data }) => (Array.isArray(data) ? data : []))
+              .catch(() => []),
+            getMockTests(m.id)
+              .then(({ data }) => (Array.isArray(data) ? data : []))
+              .catch(() => []),
+          ]).then(([lessons, tests]) => [m.id, { lessons, mockTests: tests }])
         )
       );
-      setLessonsByModule(Object.fromEntries(results));
+      setLessonsByModule(
+        Object.fromEntries(results.map(([id, v]) => [id, v.lessons]))
+      );
+      setMockTestsByModule(
+        Object.fromEntries(results.map(([id, v]) => [id, v.mockTests]))
+      );
     } catch (err) {
       console.error("Failed to load course:", err);
     } finally {
@@ -63,6 +76,10 @@ export default function CourseDetail() {
 
   const handleViewLesson = (moduleId, lessonId) => {
     navigate(`/lessons/${moduleId}/${lessonId}`);
+  };
+
+  const handleViewMockTest = (mockTestId) => {
+    navigate(`/mock-tests/${mockTestId}`);
   };
 
   if (loading) {
@@ -215,6 +232,10 @@ export default function CourseDetail() {
                           </div>
                           <span className="text-xs text-slate-400">
                             {lessons.length} lessons
+                            {(mockTestsByModule[mod.id] || []).length > 0 &&
+                              ` · ${(mockTestsByModule[mod.id] || []).length} mock test${
+                                (mockTestsByModule[mod.id] || []).length > 1 ? "s" : ""
+                              }`}
                           </span>
                         </button>
 
@@ -249,6 +270,35 @@ export default function CourseDetail() {
                                   )}
                                 </button>
                               ))}
+
+                            {(mockTestsByModule[mod.id] || []).length > 0 && (
+                              <>
+                                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide px-6 pt-4 pb-1">
+                                  Mock Tests
+                                </p>
+                                {mockTestsByModule[mod.id]
+                                  .sort(
+                                    (a, b) =>
+                                      (a.displayOrder || 0) - (b.displayOrder || 0)
+                                  )
+                                  .map((test) => (
+                                    <button
+                                      key={test.id}
+                                      onClick={() => handleViewMockTest(test.id)}
+                                      className="w-full flex items-center gap-3 px-6 py-3 hover:bg-slate-50 transition-colors text-left border-b border-slate-50 last:border-0"
+                                    >
+                                      <ClipboardList className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                                      <span className="text-sm text-slate-600">
+                                        {test.title}
+                                      </span>
+                                      <span className="text-xs text-slate-400 ml-auto">
+                                        {(test.questions || []).length} questions &middot;{" "}
+                                        {test.durationMinutes} min
+                                      </span>
+                                    </button>
+                                  ))}
+                              </>
+                            )}
                           </div>
                         )}
                       </div>
