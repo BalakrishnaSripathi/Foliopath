@@ -1,24 +1,26 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
-  Star,
-  Users,
   Clock,
   Globe,
   BookOpen,
   ChevronDown,
   ChevronRight,
   PlayCircle,
-  CheckCircle,
 } from "lucide-react";
 import {
   getCourseById,
   getModules,
-  getCourseReviews,
-  enrollCourse,
-  checkEnrolled,
+  getLessons,
 } from "../../api/courseService";
 import { useAuth } from "../../context/AuthContext";
+import Header from "../../components/layout/Header";
+
+const levelLabels = {
+  BEGINNER: "Beginner",
+  INTERMEDIATE: "Intermediate",
+  ADVANCED: "Advanced",
+};
 
 export default function CourseDetail() {
   const { courseId } = useParams();
@@ -26,10 +28,8 @@ export default function CourseDetail() {
   const { isAuthenticated, role } = useAuth();
   const [course, setCourse] = useState(null);
   const [modules, setModules] = useState([]);
-  const [reviews, setReviews] = useState([]);
-  const [enrolled, setEnrolled] = useState(false);
+  const [lessonsByModule, setLessonsByModule] = useState({});
   const [loading, setLoading] = useState(true);
-  const [enrolling, setEnrolling] = useState(false);
   const [expandedModule, setExpandedModule] = useState(null);
 
   useEffect(() => {
@@ -38,23 +38,22 @@ export default function CourseDetail() {
 
   const loadData = async () => {
     try {
-      const [courseRes, modulesRes, reviewsRes] = await Promise.all([
+      const [courseRes, modulesRes] = await Promise.all([
         getCourseById(courseId),
         getModules(courseId),
-        getCourseReviews(courseId),
       ]);
       setCourse(courseRes.data);
-      setModules(modulesRes.data);
-      setReviews(reviewsRes.data);
+      const mods = modulesRes.data;
+      setModules(mods);
 
-      if (isAuthenticated && role === "STUDENT") {
-        try {
-          const { data } = await checkEnrolled(courseId);
-          setEnrolled(data);
-        } catch {
-          setEnrolled(false);
-        }
-      }
+      const results = await Promise.all(
+        mods.map((m) =>
+          getLessons(m.id)
+            .then(({ data }) => [m.id, Array.isArray(data) ? data : []])
+            .catch(() => [m.id, []])
+        )
+      );
+      setLessonsByModule(Object.fromEntries(results));
     } catch (err) {
       console.error("Failed to load course:", err);
     } finally {
@@ -62,32 +61,8 @@ export default function CourseDetail() {
     }
   };
 
-  const handleEnroll = async () => {
-    if (!isAuthenticated) {
-      navigate("/login");
-      return;
-    }
-    setEnrolling(true);
-    try {
-      await enrollCourse(courseId);
-      setEnrolled(true);
-      setCourse((prev) => ({
-        ...prev,
-        totalStudents: (prev.totalStudents || 0) + 1,
-      }));
-    } catch (err) {
-      alert(err.response?.data?.message || "Failed to enroll");
-    } finally {
-      setEnrolling(false);
-    }
-  };
-
-  const handleViewLesson = (lessonId) => {
-    if (!enrolled) {
-      handleEnroll();
-      return;
-    }
-    navigate(`/lessons/${lessonId}`);
+  const handleViewLesson = (moduleId, lessonId) => {
+    navigate(`/lessons/${moduleId}/${lessonId}`);
   };
 
   if (loading) {
@@ -106,41 +81,38 @@ export default function CourseDetail() {
     );
   }
 
-  const totalLessons = modules.reduce(
-    (acc, m) => acc + (m.lessons?.length || 0),
+  const totalLessons = Object.values(lessonsByModule).reduce(
+    (acc, lessons) => acc + lessons.length,
     0
   );
 
   return (
     <div className="min-h-screen bg-slate-50">
+      <Header />
       {/* Hero */}
-      <div className="bg-[#0B2545] text-white py-16">
+      <div className="bg-[#0B2545] text-white py-12 sm:py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid lg:grid-cols-3 gap-12">
+          <div className="grid lg:grid-cols-3 gap-8 lg:gap-12">
             <div className="lg:col-span-2">
               <span className="text-xs font-bold text-[#00A86B] tracking-wider uppercase">
-                {course.category || "Course"}
+                {levelLabels[course.level] || "Course"}
               </span>
-              <h1 className="text-3xl font-bold mt-2 mb-4">{course.title}</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold mt-2 mb-4">
+                {course.title}
+              </h1>
               <p className="text-slate-300 text-sm leading-relaxed mb-6">
-                {course.description}
+                {course.shortDescription || course.description}
               </p>
 
               <div className="flex flex-wrap items-center gap-4 text-sm text-slate-300">
-                {course.rating > 0 && (
-                  <span className="flex items-center gap-1">
-                    <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
-                    {course.rating?.toFixed(1)} rating
-                  </span>
-                )}
                 <span className="flex items-center gap-1">
-                  <Users className="w-4 h-4" />
-                  {course.totalStudents} students
+                  <BookOpen className="w-4 h-4" />
+                  {modules.length} modules &middot; {totalLessons} lessons
                 </span>
                 {course.level && (
                   <span className="flex items-center gap-1">
                     <Clock className="w-4 h-4" />
-                    {course.level}
+                    {levelLabels[course.level]}
                   </span>
                 )}
                 {course.language && (
@@ -150,47 +122,45 @@ export default function CourseDetail() {
                   </span>
                 )}
               </div>
-
-              {course.instructorName && (
-                <p className="text-sm text-slate-400 mt-4">
-                  Created by{" "}
-                  <span className="text-white font-semibold">
-                    {course.instructorName}
-                  </span>
-                </p>
-              )}
             </div>
 
             {/* Enroll Card */}
             <div className="bg-white rounded-2xl p-6 text-[#0B2545] shadow-xl self-start">
-              {course.imageUrl && (
+              {course.thumbnailUrl && (
                 <img
-                  src={course.imageUrl}
+                  src={course.thumbnailUrl}
                   alt={course.title}
                   className="w-full h-40 object-cover rounded-xl mb-4"
                 />
               )}
-              <div className="text-3xl font-black mb-4">₹{course.price}</div>
+              <div className="text-3xl font-black mb-4">
+                ₹{course.price || 0}
+              </div>
 
-              {enrolled ? (
-                <div className="w-full py-3 bg-green-50 text-green-600 font-bold rounded-xl text-center text-sm">
-                  ✓ Enrolled
-                </div>
-              ) : (
-                <button
-                  onClick={handleEnroll}
-                  disabled={enrolling}
-                  className="w-full py-3 bg-[#00A86B] hover:bg-[#008f5a] text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-60"
-                >
-                  {enrolling ? "Enrolling..." : "Enroll Now"}
-                </button>
-              )}
+              <button
+                onClick={() => {
+                  if (!isAuthenticated) {
+                    navigate("/login");
+                  } else if (role === "STUDENT") {
+                    navigate("/my-courses");
+                  }
+                }}
+                className="w-full py-3 bg-[#00A86B] hover:bg-[#008f5a] text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all duration-200"
+              >
+                {isAuthenticated ? "Go to Dashboard" : "Enroll Now"}
+              </button>
 
               <div className="mt-4 space-y-2 text-sm text-slate-600">
                 <div className="flex items-center gap-2">
                   <BookOpen className="w-4 h-4 text-slate-400" />
                   {modules.length} modules &middot; {totalLessons} lessons
                 </div>
+                {course.language && (
+                  <div className="flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-slate-400" />
+                    {course.language}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -216,97 +186,78 @@ export default function CourseDetail() {
                 Curriculum
               </h2>
               <div className="space-y-3">
-                {modules.map((mod) => (
-                  <div
-                    key={mod.id}
-                    className="bg-white rounded-2xl border border-slate-100 overflow-hidden"
-                  >
-                    <button
-                      onClick={() =>
-                        setExpandedModule(
-                          expandedModule === mod.id ? null : mod.id
-                        )
-                      }
-                      className="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        {expandedModule === mod.id ? (
-                          <ChevronDown className="w-5 h-5 text-slate-400" />
-                        ) : (
-                          <ChevronRight className="w-5 h-5 text-slate-400" />
-                        )}
-                        <span className="font-semibold text-[#0B2545]">
-                          Module {mod.orderIndex}: {mod.title}
-                        </span>
-                      </div>
-                      <span className="text-xs text-slate-400">
-                        {mod.lessons?.length || 0} lessons
-                      </span>
-                    </button>
-
-                    {expandedModule === mod.id && (
-                      <div className="border-t border-slate-100">
-                        {(mod.lessons || []).map((lesson) => (
-                          <button
-                            key={lesson.id}
-                            onClick={() => handleViewLesson(lesson.id)}
-                            className="w-full flex items-center gap-3 px-6 py-3 hover:bg-slate-50 transition-colors text-left border-b border-slate-50 last:border-0"
-                          >
-                            {enrolled ? (
-                              <PlayCircle className="w-4 h-4 text-[#00A86B] flex-shrink-0" />
+                {modules
+                  .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0))
+                  .map((mod) => {
+                    const lessons = lessonsByModule[mod.id] || [];
+                    return (
+                      <div
+                        key={mod.id}
+                        className="bg-white rounded-2xl border border-slate-100 overflow-hidden"
+                      >
+                        <button
+                          onClick={() =>
+                            setExpandedModule(
+                              expandedModule === mod.id ? null : mod.id
+                            )
+                          }
+                          className="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            {expandedModule === mod.id ? (
+                              <ChevronDown className="w-5 h-5 text-slate-400" />
                             ) : (
-                              <CheckCircle className="w-4 h-4 text-slate-300 flex-shrink-0" />
+                              <ChevronRight className="w-5 h-5 text-slate-400" />
                             )}
-                            <span className="text-sm text-slate-600">
-                              {lesson.title}
+                            <span className="font-semibold text-[#0B2545]">
+                              Module {mod.displayOrder}: {mod.title}
                             </span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </section>
+                          </div>
+                          <span className="text-xs text-slate-400">
+                            {lessons.length} lessons
+                          </span>
+                        </button>
 
-            {/* Reviews */}
-            <section>
-              <h2 className="text-xl font-bold text-[#0B2545] mb-4">
-                Reviews ({reviews.length})
-              </h2>
-              {reviews.length === 0 ? (
-                <div className="bg-white rounded-2xl border border-slate-100 p-6 text-center text-sm text-slate-400">
-                  No reviews yet
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {reviews.map((review) => (
-                    <div
-                      key={review.id}
-                      className="bg-white rounded-2xl border border-slate-100 p-4"
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-semibold text-[#0B2545]">
-                          {review.studentName}
-                        </span>
-                        <div className="flex items-center gap-1">
-                          {Array.from({ length: 5 }).map((_, i) => (
-                            <Star
-                              key={i}
-                              className={`w-3.5 h-3.5 ${
-                                i < review.rating
-                                  ? "fill-amber-400 text-amber-400"
-                                  : "text-slate-200"
-                              }`}
-                            />
-                          ))}
-                        </div>
+                        {expandedModule === mod.id && (
+                          <div className="border-t border-slate-100">
+                            {lessons.length === 0 && (
+                              <p className="text-sm text-slate-400 text-center py-4">
+                                No lessons in this module yet
+                              </p>
+                            )}
+                            {lessons
+                              .sort(
+                                (a, b) =>
+                                  (a.displayOrder || 0) - (b.displayOrder || 0)
+                              )
+                              .map((lesson) => (
+                                <button
+                                  key={lesson.id}
+                                  onClick={() =>
+                                    handleViewLesson(mod.id, lesson.id)
+                                  }
+                                  className="w-full flex items-center gap-3 px-6 py-3 hover:bg-slate-50 transition-colors text-left border-b border-slate-50 last:border-0"
+                                >
+                                  <PlayCircle className="w-4 h-4 text-[#00A86B] flex-shrink-0" />
+                                  <span className="text-sm text-slate-600">
+                                    {lesson.title}
+                                  </span>
+                                  {lesson.estimatedMinutes && (
+                                    <span className="text-xs text-slate-400 ml-auto">
+                                      {lesson.estimatedMinutes} min
+                                    </span>
+                                  )}
+                                </button>
+                              ))}
+                          </div>
+                        )}
                       </div>
-                      <p className="text-sm text-slate-600">
-                        {review.comment}
-                      </p>
-                    </div>
-                  ))}
+                    );
+                  })}
+              </div>
+              {modules.length === 0 && (
+                <div className="bg-white rounded-2xl border border-slate-100 p-6 text-center text-sm text-slate-400">
+                  Course curriculum coming soon
                 </div>
               )}
             </section>

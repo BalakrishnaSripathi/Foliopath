@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Save } from "lucide-react";
 import {
@@ -6,20 +6,9 @@ import {
   updateCourse,
   getCourseById,
 } from "../../api/courseService";
+import Header from "../../components/layout/Header";
 
-const categories = [
-  "Web Development",
-  "Mobile Development",
-  "Data Science",
-  "AI & Machine Learning",
-  "DevOps",
-  "Cybersecurity",
-  "Business",
-  "Design",
-  "Marketing",
-];
-
-const levels = ["Beginner", "Intermediate", "Advanced"];
+const levels = ["BEGINNER", "INTERMEDIATE", "ADVANCED"];
 
 export default function AdminCourseForm() {
   const { courseId } = useParams();
@@ -28,13 +17,13 @@ export default function AdminCourseForm() {
 
   const [form, setForm] = useState({
     title: "",
+    shortDescription: "",
     description: "",
-    imageUrl: "",
-    category: "",
-    level: "Beginner",
+    thumbnailUrl: "",
+    level: "BEGINNER",
     language: "English",
     price: 0,
-    published: false,
+    courseCode: "",
   });
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(isEdit);
@@ -46,13 +35,13 @@ export default function AdminCourseForm() {
         .then(({ data }) => {
           setForm({
             title: data.title || "",
+            shortDescription: data.shortDescription || "",
             description: data.description || "",
-            imageUrl: data.imageUrl || "",
-            category: data.category || "",
-            level: data.level || "Beginner",
+            thumbnailUrl: data.thumbnailUrl || "",
+            level: data.level || "BEGINNER",
             language: data.language || "English",
             price: data.price || 0,
-            published: data.published || false,
+            courseCode: data.courseCode || "",
           });
         })
         .catch(() => setError("Failed to load course"))
@@ -61,11 +50,8 @@ export default function AdminCourseForm() {
   }, [courseId, isEdit]);
 
   const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setForm((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : value,
-    }));
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e) => {
@@ -80,10 +66,15 @@ export default function AdminCourseForm() {
     try {
       if (isEdit) {
         await updateCourse(courseId, form);
+        navigate("/admin/dashboard");
       } else {
-        await createCourse(form);
+        const { data } = await createCourse(form);
+        navigate(`/admin/courses/${data.id}/content`, {
+          state: {
+            message: "Course created! Now add modules and lessons.",
+          },
+        });
       }
-      navigate("/admin/dashboard");
     } catch (err) {
       setError(err.response?.data?.message || "Failed to save course");
     } finally {
@@ -101,6 +92,7 @@ export default function AdminCourseForm() {
 
   return (
     <div className="min-h-screen bg-slate-50">
+      <Header />
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <button
           onClick={() => navigate("/admin/dashboard")}
@@ -122,9 +114,8 @@ export default function AdminCourseForm() {
 
         <form
           onSubmit={handleSubmit}
-          className="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 space-y-6"
+          className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 sm:p-8 space-y-6"
         >
-          {/* Title */}
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1.5">
               Course Title *
@@ -139,7 +130,21 @@ export default function AdminCourseForm() {
             />
           </div>
 
-          {/* Description */}
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+              Short Description
+            </label>
+            <input
+              type="text"
+              name="shortDescription"
+              value={form.shortDescription}
+              onChange={handleChange}
+              placeholder="Brief one-line description"
+              maxLength={500}
+              className="w-full px-4 py-2.5 text-sm bg-slate-50 rounded-xl border border-slate-200 focus:border-[#00A86B] focus:bg-white focus:outline-none transition-all duration-200"
+            />
+          </div>
+
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1.5">
               Description
@@ -154,48 +159,28 @@ export default function AdminCourseForm() {
             />
           </div>
 
-          {/* Image URL */}
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1.5">
-              Image URL
+              Thumbnail URL
             </label>
             <input
               type="url"
-              name="imageUrl"
-              value={form.imageUrl}
+              name="thumbnailUrl"
+              value={form.thumbnailUrl}
               onChange={handleChange}
               placeholder="https://example.com/image.jpg"
               className="w-full px-4 py-2.5 text-sm bg-slate-50 rounded-xl border border-slate-200 focus:border-[#00A86B] focus:bg-white focus:outline-none transition-all duration-200"
             />
-            {form.imageUrl && (
+            {form.thumbnailUrl && (
               <img
-                src={form.imageUrl}
+                src={form.thumbnailUrl}
                 alt="Preview"
                 className="mt-3 h-32 rounded-xl object-cover border border-slate-100"
               />
             )}
           </div>
 
-          {/* Category, Level, Language */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">
-                Category
-              </label>
-              <select
-                name="category"
-                value={form.category}
-                onChange={handleChange}
-                className="w-full px-4 py-2.5 text-sm bg-slate-50 rounded-xl border border-slate-200 focus:border-[#00A86B] focus:bg-white focus:outline-none transition-all duration-200"
-              >
-                <option value="">Select category</option>
-                {categories.map((cat) => (
-                  <option key={cat} value={cat}>
-                    {cat}
-                  </option>
-                ))}
-              </select>
-            </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                 Level
@@ -208,7 +193,7 @@ export default function AdminCourseForm() {
               >
                 {levels.map((lvl) => (
                   <option key={lvl} value={lvl}>
-                    {lvl}
+                    {lvl.charAt(0) + lvl.slice(1).toLowerCase()}
                   </option>
                 ))}
               </select>
@@ -225,39 +210,22 @@ export default function AdminCourseForm() {
                 className="w-full px-4 py-2.5 text-sm bg-slate-50 rounded-xl border border-slate-200 focus:border-[#00A86B] focus:bg-white focus:outline-none transition-all duration-200"
               />
             </div>
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                Price (₹)
+              </label>
+              <input
+                type="number"
+                name="price"
+                value={form.price}
+                onChange={handleChange}
+                min="0"
+                step="0.01"
+                className="w-full px-4 py-2.5 text-sm bg-slate-50 rounded-xl border border-slate-200 focus:border-[#00A86B] focus:bg-white focus:outline-none transition-all duration-200"
+              />
+            </div>
           </div>
 
-          {/* Price */}
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1.5">
-              Price (₹)
-            </label>
-            <input
-              type="number"
-              name="price"
-              value={form.price}
-              onChange={handleChange}
-              min="0"
-              step="0.01"
-              className="w-full px-4 py-2.5 text-sm bg-slate-50 rounded-xl border border-slate-200 focus:border-[#00A86B] focus:bg-white focus:outline-none transition-all duration-200"
-            />
-          </div>
-
-          {/* Published */}
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              name="published"
-              checked={form.published}
-              onChange={handleChange}
-              className="w-4 h-4 rounded border-slate-300 text-[#00A86B] focus:ring-[#00A86B]"
-            />
-            <span className="text-sm font-semibold text-slate-700">
-              Publish course
-            </span>
-          </label>
-
-          {/* Submit */}
           <div className="flex items-center gap-4 pt-4">
             <button
               type="submit"

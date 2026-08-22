@@ -64,9 +64,21 @@ export default function Header() {
 
           {isAuthenticated ? (
             <>
-              {role === "ADMIN" && (
+              {role === "SUPER_ADMIN" && (
                 <Link
-                  to="/admin/dashboard"
+                  to="/super-admin/dashboard"
+                  data-aos="fade-down"
+                  data-aos-duration="400"
+                  data-aos-delay="320"
+                  className="flex items-center gap-2 text-sm font-semibold text-[#0B2545] hover:text-[#00A86B] px-3 py-2 transition-colors duration-200"
+                >
+                  <LayoutDashboard className="w-4 h-4" />
+                  Dashboard
+                </Link>
+              )}
+              {role === "STAFF" && (
+                <Link
+                  to="/staff/dashboard"
                   data-aos="fade-down"
                   data-aos-duration="400"
                   data-aos-delay="320"
@@ -77,16 +89,28 @@ export default function Header() {
                 </Link>
               )}
               {role === "STUDENT" && (
-                <Link
-                  to="/my-courses"
-                  data-aos="fade-down"
-                  data-aos-duration="400"
-                  data-aos-delay="320"
-                  className="flex items-center gap-2 text-sm font-semibold text-[#0B2545] hover:text-[#00A86B] px-3 py-2 transition-colors duration-200"
-                >
-                  <BookOpen className="w-4 h-4" />
-                  My Courses
-                </Link>
+                <>
+                  <Link
+                    to="/my-courses"
+                    data-aos="fade-down"
+                    data-aos-duration="400"
+                    data-aos-delay="320"
+                    className="flex items-center gap-2 text-sm font-semibold text-[#0B2545] hover:text-[#00A86B] px-3 py-2 transition-colors duration-200"
+                  >
+                    <BookOpen className="w-4 h-4" />
+                    My Courses
+                  </Link>
+                  <Link
+                    to="/my-profile"
+                    data-aos="fade-down"
+                    data-aos-duration="400"
+                    data-aos-delay="330"
+                    className="flex items-center gap-2 text-sm font-semibold text-[#0B2545] hover:text-[#00A86B] px-3 py-2 transition-colors duration-200"
+                  >
+                    <User className="w-4 h-4" />
+                    Profile
+                  </Link>
+                </>
               )}
               <div
                 data-aos="fade-down"
@@ -159,25 +183,35 @@ export default function Header() {
           <div className="pt-4 flex flex-col gap-2">
             {isAuthenticated ? (
               <>
-                {role === "ADMIN" && (
+                {(role === "SUPER_ADMIN" || role === "STAFF") && (
                   <Link
-                    to="/admin/dashboard"
+                    to={role === "SUPER_ADMIN" ? "/super-admin/dashboard" : "/staff/dashboard"}
                     onClick={() => setMobileMenuOpen(false)}
                     className="flex items-center justify-center gap-2 font-semibold text-[#0B2545] py-2 border border-slate-200 rounded-lg transition-colors duration-200 hover:border-[#00A86B] hover:text-[#00A86B]"
                   >
                     <LayoutDashboard className="w-4 h-4" />
-                    Admin Dashboard
+                    Dashboard
                   </Link>
                 )}
                 {role === "STUDENT" && (
-                  <Link
-                    to="/my-courses"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center justify-center gap-2 font-semibold text-[#0B2545] py-2 border border-slate-200 rounded-lg transition-colors duration-200 hover:border-[#00A86B] hover:text-[#00A86B]"
-                  >
-                    <BookOpen className="w-4 h-4" />
-                    My Courses
-                  </Link>
+                  <>
+                    <Link
+                      to="/my-courses"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="flex items-center justify-center gap-2 font-semibold text-[#0B2545] py-2 border border-slate-200 rounded-lg transition-colors duration-200 hover:border-[#00A86B] hover:text-[#00A86B]"
+                    >
+                      <BookOpen className="w-4 h-4" />
+                      My Courses
+                    </Link>
+                    <Link
+                      to="/my-profile"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="flex items-center justify-center gap-2 font-semibold text-[#0B2545] py-2 border border-slate-200 rounded-lg transition-colors duration-200 hover:border-[#00A86B] hover:text-[#00A86B]"
+                    >
+                      <User className="w-4 h-4" />
+                      My Profile
+                    </Link>
+                  </>
                 )}
                 <button
                   onClick={handleLogout}

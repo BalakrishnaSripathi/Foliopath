@@ -1,8 +1,8 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { User, Mail, Phone, Lock, Eye, EyeOff, GraduationCap, Shield } from "lucide-react";
 import Logo from "../components/common/Logo";
-import { register } from "../api/authService";
+import { registerStudent } from "../api/authService";
 
 const initialForm = {
   name: "",
@@ -39,8 +39,8 @@ export default function Register() {
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email))
       newErrors.email = "Enter a valid email";
     if (!form.password) newErrors.password = "Password is required";
-    else if (form.password.length < 6)
-      newErrors.password = "Min 6 characters required";
+    else if (form.password.length < 8)
+      newErrors.password = "Min 8 characters required";
     if (!form.confirmPassword)
       newErrors.confirmPassword = "Confirm your password";
     else if (form.password !== form.confirmPassword)
@@ -59,9 +59,18 @@ export default function Register() {
     setLoading(true);
     setServerError("");
     try {
-      await register(form);
-      navigate("/login", {
-        state: { message: "Registration successful! Please log in." },
+      const [firstName = "", ...rest] = form.name.trim().split(" ");
+      await registerStudent({
+        username: form.email.split("@")[0].replace(/[^a-z0-9_]/gi, "").toLowerCase() + Date.now().toString(36).slice(-4),
+        email: form.email,
+        password: form.password,
+        confirmPassword: form.confirmPassword,
+        firstName,
+        lastName: rest.join(" "),
+        mobileNumber: form.mobile,
+      });
+      navigate("/verify-otp", {
+        state: { email: form.email },
       });
     } catch (err) {
       const msg =
@@ -99,11 +108,7 @@ export default function Register() {
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-md">
-        <div
-          data-aos="fade-down"
-          data-aos-delay="100"
-          className="text-center mb-8"
-        >
+        <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
             <Logo />
           </div>
@@ -115,11 +120,7 @@ export default function Register() {
           </p>
         </div>
 
-        <div
-          data-aos="fade-up"
-          data-aos-delay="200"
-          className="bg-white rounded-2xl shadow-lg border border-slate-100 p-8"
-        >
+        <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-8">
           {serverError && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
               {serverError}
@@ -127,8 +128,8 @@ export default function Register() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            {fields.map((field, idx) => (
-              <div key={field.name} data-aos="fade-right" data-aos-delay={250 + idx * 70}>
+            {fields.map((field) => (
+              <div key={field.name}>
                 <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                   {field.label}
                 </label>
@@ -154,9 +155,8 @@ export default function Register() {
                 )}
               </div>
             ))}
-
-            {/* Role Selection */}
-            <div data-aos="fade-right" data-aos-delay="430">
+{/* 
+            <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                 I want to join as
               </label>
@@ -186,10 +186,9 @@ export default function Register() {
                   Admin
                 </button>
               </div>
-            </div>
+            </div> */}
 
-            {/* Password */}
-            <div data-aos="fade-right" data-aos-delay="460">
+            <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                 Password
               </label>
@@ -200,7 +199,7 @@ export default function Register() {
                   name="password"
                   value={form.password}
                   onChange={handleChange}
-                  placeholder="Min 6 characters"
+                  placeholder="Min 8 characters"
                   className={`w-full pl-10 pr-10 py-2.5 text-sm bg-slate-50 rounded-xl border ${
                     errors.password
                       ? "border-red-400 focus:border-red-500"
@@ -224,8 +223,7 @@ export default function Register() {
               )}
             </div>
 
-            {/* Confirm Password */}
-            <div data-aos="fade-right" data-aos-delay="530">
+            <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                 Confirm Password
               </label>
@@ -263,8 +261,6 @@ export default function Register() {
             </div>
 
             <button
-              data-aos="fade-up"
-              data-aos-delay="580"
               type="submit"
               disabled={loading}
               className="w-full py-3 bg-[#00A86B] hover:bg-[#008f5a] text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0"

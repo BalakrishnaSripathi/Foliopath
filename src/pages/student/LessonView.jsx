@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, ChevronLeft, ChevronRight, Code } from "lucide-react";
-import { getLesson, getModules } from "../../api/courseService";
+import { ArrowLeft, Code } from "lucide-react";
+import { getLesson } from "../../api/courseService";
+import Header from "../../components/layout/Header";
 
 function renderContentBlock(block, index) {
   if (block.type === "heading") {
@@ -42,41 +43,124 @@ function renderContentBlock(block, index) {
   return null;
 }
 
+function renderLessonItem(item, index) {
+  return (
+    <div
+      key={item.id || index}
+      className="border border-slate-200 rounded-2xl p-5 mb-5 bg-slate-50/50"
+    >
+      <h3 className="text-lg font-bold text-[#0B2545] mb-1">
+        {index + 1}. {item.title}
+      </h3>
+      {item.description && (
+        <p className="text-sm text-slate-500 mb-3">{item.description}</p>
+      )}
+      {item.content && (
+        <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap mb-3">
+          {item.content}
+        </div>
+      )}
+      {item.codeContent && (
+        <div>
+          <div className="flex items-center gap-2 px-4 py-2 bg-[#0a1628] rounded-t-xl border border-slate-700 border-b-0">
+            <Code className="w-3.5 h-3.5 text-[#00A86B]" />
+            <span className="text-xs font-mono text-slate-400">
+              {item.codeLanguage || "code"}
+            </span>
+          </div>
+          <pre className="bg-[#0B2545] text-green-400 p-4 rounded-b-xl border border-slate-700 overflow-x-auto">
+            <code className="text-sm font-mono whitespace-pre">
+              {item.codeContent}
+            </code>
+          </pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function renderRawLessonContent(lesson) {
+  const blocks = [];
+
+  if (lesson.content) {
+    try {
+      const parsed = JSON.parse(lesson.content);
+      if (Array.isArray(parsed)) {
+        return parsed.map((block, idx) => renderContentBlock(block, idx));
+      }
+    } catch {
+      blocks.push(
+        <div key="content" className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap mb-4">
+          {lesson.content}
+        </div>
+      );
+    }
+  }
+
+  if (lesson.codeContent) {
+    blocks.push(
+      <div key="code" className="mb-4">
+        <div className="flex items-center gap-2 px-4 py-2 bg-[#0a1628] rounded-t-xl border border-slate-700 border-b-0">
+          <Code className="w-3.5 h-3.5 text-[#00A86B]" />
+          <span className="text-xs font-mono text-slate-400">
+            {lesson.codeLanguage || "code"}
+          </span>
+        </div>
+        <pre className="bg-[#0B2545] text-green-400 p-4 rounded-b-xl border border-slate-700 overflow-x-auto">
+          <code className="text-sm font-mono whitespace-pre">{lesson.codeContent}</code>
+        </pre>
+      </div>
+    );
+  }
+
+  if (lesson.documentUrl) {
+    blocks.push(
+      <a
+        key="document"
+        href={lesson.documentUrl}
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex items-center gap-2 px-4 py-2 bg-[#00A86B] text-white text-sm font-semibold rounded-xl hover:bg-[#008f5a] transition-colors mb-4"
+      >
+        Open Document
+      </a>
+    );
+  }
+
+  if (lesson.items?.length > 0) {
+    blocks.push(
+      <div key="items" className="mt-6">
+        <h2 className="text-base font-bold text-[#0B2545] uppercase tracking-wide mb-4">
+          Lesson Sections
+        </h2>
+        {[...lesson.items]
+          .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0))
+          .map((item, idx) => renderLessonItem(item, idx))}
+      </div>
+    );
+  }
+
+  return blocks.length > 0 ? blocks : null;
+}
+
 export default function LessonView() {
-  const { lessonId } = useParams();
+  const { moduleId, lessonId } = useParams();
   const navigate = useNavigate();
   const [lesson, setLesson] = useState(null);
-  const [modules, setModules] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [courseId, setCourseId] = useState(null);
 
   useEffect(() => {
-    loadData();
-  }, [lessonId]);
+    loadLesson();
+  }, [moduleId, lessonId]);
 
-  const loadData = async () => {
+  const loadLesson = async () => {
     try {
-      const { data: lessonData } = await getLesson(lessonId);
-      setLesson(lessonData);
-      setCourseId(lessonData.moduleId);
-
-      // Find course ID from module
-      // We need to find which course this module belongs to
-      // The lesson has moduleId, we need to find courseId
-      // For now, navigate back uses browser history
+      const { data } = await getLesson(moduleId, lessonId);
+      setLesson(data);
     } catch (err) {
       console.error("Failed to load lesson:", err);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const parseContent = (content) => {
-    if (!content) return [];
-    try {
-      return JSON.parse(content);
-    } catch {
-      return [{ type: "text", body: content }];
     }
   };
 
@@ -96,10 +180,11 @@ export default function LessonView() {
     );
   }
 
-  const contentBlocks = parseContent(lesson.content);
+  const contentBlocks = renderRawLessonContent(lesson);
 
   return (
     <div className="min-h-screen bg-slate-50">
+      <Header />
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <button
           onClick={() => navigate(-1)}
@@ -110,7 +195,6 @@ export default function LessonView() {
         </button>
 
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-          {/* Lesson Header */}
           <div className="p-6 border-b border-slate-100 bg-slate-50">
             <span className="text-xs font-semibold text-[#00A86B] uppercase tracking-wider">
               Lesson
@@ -118,19 +202,31 @@ export default function LessonView() {
             <h1 className="text-2xl font-bold text-[#0B2545] mt-1">
               {lesson.title}
             </h1>
+            {lesson.description && (
+              <p className="text-sm text-slate-500 mt-2">
+                {lesson.description}
+              </p>
+            )}
+            <div className="flex items-center gap-4 mt-3 text-xs text-slate-400">
+              {lesson.lessonType && (
+                <span className="px-2 py-1 bg-slate-100 rounded">
+                  {lesson.lessonType}
+                </span>
+              )}
+              {lesson.estimatedMinutes && (
+                <span>{lesson.estimatedMinutes} min read</span>
+              )}
+            </div>
           </div>
 
-          {/* Lesson Content */}
           <div className="p-6">
-            {contentBlocks.length === 0 ? (
+            {!contentBlocks ? (
               <p className="text-slate-400 text-center py-8">
                 No content available for this lesson
               </p>
             ) : (
               <div className="prose prose-sm max-w-none">
-                {contentBlocks.map((block, idx) =>
-                  renderContentBlock(block, idx)
-                )}
+                {contentBlocks}
               </div>
             )}
           </div>
