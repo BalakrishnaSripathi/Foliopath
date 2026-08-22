@@ -4,6 +4,25 @@ import { ArrowLeft, Code } from "lucide-react";
 import { getLesson } from "../../api/courseService";
 import Header from "../../components/layout/Header";
 
+const looksLikeHtml = (str) => /<\/?[a-z][\s\S]*>/i.test(str || "");
+
+function RichContent({ content, className = "" }) {
+  if (!content) return null;
+
+  if (looksLikeHtml(content)) {
+    return (
+      <div
+        className={`rich-text-content ${className}`}
+        dangerouslySetInnerHTML={{ __html: content }}
+      />
+    );
+  }
+
+  return (
+    <div className={`whitespace-pre-wrap ${className}`}>{content}</div>
+  );
+}
+
 function renderContentBlock(block, index) {
   if (block.type === "heading") {
     return (
@@ -56,9 +75,10 @@ function renderLessonItem(item, index) {
         <p className="text-sm text-slate-500 mb-3">{item.description}</p>
       )}
       {item.content && (
-        <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap mb-3">
-          {item.content}
-        </div>
+        <RichContent
+          content={item.content}
+          className="text-sm text-slate-700 leading-relaxed mb-3"
+        />
       )}
       {item.codeContent && (
         <div>
@@ -90,9 +110,11 @@ function renderRawLessonContent(lesson) {
       }
     } catch {
       blocks.push(
-        <div key="content" className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap mb-4">
-          {lesson.content}
-        </div>
+        <RichContent
+          key="content"
+          content={lesson.content}
+          className="text-sm text-slate-700 leading-relaxed mb-4"
+        />
       );
     }
   }

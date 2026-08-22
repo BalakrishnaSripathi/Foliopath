@@ -23,6 +23,7 @@ import {
   deleteLesson,
 } from "../../api/courseService";
 import Header from "../../components/layout/Header";
+import RichTextEditor from "../../components/RichTextEditor";
 
 const LESSON_TYPES = ["CONCEPT", "TEXT_ONLY", "CODE_ONLY", "TEXT_AND_CODE"];
 const CONTENT_TYPES = ["TEXT", "CODE", "TEXT_AND_CODE", "DOCUMENT", "TEXT_AND_DOCUMENT"];
@@ -167,12 +168,11 @@ function LessonItemsEditor({ items, onChange }) {
             placeholder="Short description"
           />
 
-          <textarea
+          <RichTextEditor
             value={item.content}
-            onChange={(e) => updateItem(idx, "content", e.target.value)}
-            rows={3}
-            className={`${inputCls} resize-none`}
-            placeholder="Text content"
+            onChange={(html) => updateItem(idx, "content", html)}
+            placeholder="Text content (bold, lists supported)"
+            minHeight="80px"
           />
 
           <select
@@ -272,13 +272,17 @@ function LessonForm({ initial, onSave, onCancel, saving }) {
       </div>
 
       <div>
-        <label className={labelCls}>Content</label>
-        <textarea
+        <label className={labelCls}>
+          Content
+          <span className="ml-2 normal-case font-medium text-slate-400">
+            (formatting like bold is shown to students as-is)
+          </span>
+        </label>
+        <RichTextEditor
           value={form.content}
-          onChange={set("content")}
-          rows={5}
-          className={`${inputCls} resize-y`}
-          placeholder="Main lesson content"
+          onChange={(html) => setForm((prev) => ({ ...prev, content: html }))}
+          placeholder="Main lesson content — use the toolbar for bold, italic, underline and lists"
+          minHeight="140px"
         />
       </div>
 
