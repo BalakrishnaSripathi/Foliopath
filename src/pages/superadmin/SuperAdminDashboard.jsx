@@ -15,6 +15,8 @@ import {
   BookOpen,
   TrendingUp,
   BarChart3,
+  Search,
+  KeyRound,
 } from "lucide-react";
 import {
   getSuperAdminDashboard,
@@ -24,10 +26,15 @@ import {
   updateStaffStatus,
   resendStaffSetupLink,
   deleteStaff,
+  getAllStudents,
+  updateStudentStatus,
+  resetStaffPassword,
+  resetStudentPasswordByAdmin,
 } from "../../api/superAdminService";
 import {
   getAllCourses,
   publishCourse,
+  unpublishCourse,
   deleteCourse,
 } from "../../api/courseService";
 import { useAuth } from "../../context/AuthContext";
@@ -227,15 +234,110 @@ function StaffFormModal({ initial, isEdit, onSave, onClose, saving }) {
   );
 }
 
-export default function CombinedDashboard() {
-  const { role } = useAuth();
+function ResetPasswordModal({ title, onSave, onClose }) {
+  const [form, setForm] = useState({ newPassword: "", confirmPassword: "" });
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const submit = async () => {
+    setError("");
+    if (!form.newPassword) return setError("New password is required");
+    if (form.newPassword.length < 8)
+      return setError("Password must be at least 8 characters");
+    if (form.newPassword !== form.confirmPassword)
+      return setError("Passwords do not match");
+    setSaving(true);
+    try {
+      await onSave(form);
+    } catch (err) {
+      setError(err.message || "Failed to reset password");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const inputCls =
+    "w-full px-3 py-2 text-sm bg-slate-50 rounded-xl border border-slate-200 focus:border-[#00A86B] focus:bg-white focus:outline-none transition-all duration-200";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm">
+        <div className="flex items-center justify-between p-5 border-b border-slate-100">
+          <h2 className="text-base font-bold text-[#0B2545]">{title}</h2>
+          <button
+            onClick={onClose}
+            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">
+              New Password *
+            </label>
+            <input
+              type="password"
+              value={form.newPassword}
+              onChange={(e) =>
+                setForm((prev) => ({ ...prev, newPassword: e.target.value }))
+              }
+              className={inputCls}
+              placeholder="Minimum 8 characters"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">
+              Confirm Password *
+            </label>
+            <input
+              type="password"
+              value={form.confirmPassword}
+              onChange={(e) =>
+                setForm((prev) => ({
+                  ...prev,
+                  confirmPassword: e.target.value,
+                }))
+              }
+              className={inputCls}
+              placeholder="Re-enter password"
+            />
+          </div>
+          {error && <p className="text-xs text-red-500">{error}</p>}
+        </div>
+
+        <div className="flex items-center justify-end gap-3 p-5 border-t border-slate-100">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-semibold text-slate-500 hover:text-slate-700 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={submit}
+            disabled={saving}
+            className="px-5 py-2 bg-[#00A86B] hover:bg-[#008f5a] text-white text-sm font-bold rounded-xl shadow-md transition-all duration-200 disabled:opacity-60"
+          >
+            {saving ? "Resetting..." : "Reset Password"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function CombinedDashboard() {  const { role } = useAuth();
   const isSuperAdmin = role === "SUPER_ADMIN";
 
   const [stats, setStats] = useState(null);
   const [staff, setStaff] = useState([]);
+  const [students, setStudents] = useState([]);
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null); // { staff | null }
+  const [resetModal, setResetModal] = useState(null); // { type: 'staff' | 'student', user }
+  const [studentSearch, setStudentSearch] = useState("");
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState("");
 
@@ -244,22 +346,52 @@ export default function CombinedDashboard() {
   }, []);
 
   const loadData = async () => {
+    setLoading(true);
+    const errors = [];
+
     try {
-      const requests = [getAllCourses()];
-      if (isSuperAdmin) {
-        requests.push(getSuperAdminDashboard(), getAllStaff());
-      }
-      const results = await Promise.all(requests);
-      setCourses(results[0].data);
-      if (isSuperAdmin) {
-        setStats(results[1].data);
-        setStaff(results[2].data);
-      }
+      const { data } = await getAllCourses();
+      setCourses(Array.isArray(data) ? data : []);
     } catch (err) {
-      console.error("Failed to load dashboard:", err);
-    } finally {
-      setLoading(false);
+      console.error("Failed to load courses:", err);
+      errors.push("Failed to load courses");
     }
+
+    if (isSuperAdmin) {
+      try {
+        const { data } = await getSuperAdminDashboard();
+        setStats(data);
+      } catch (err) {
+        console.error("Failed to load dashboard stats:", err);
+        errors.push("Failed to load stats");
+      }
+
+      try {
+        const { data } = await getAllStaff();
+        setStaff(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error("Failed to load staff:", err);
+        errors.push("Failed to load staff");
+      }
+
+      try {
+        const { data } = await getAllStudents();
+        setStudents(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error("Failed to load students:", err);
+        errors.push("Failed to load students");
+      }
+    }
+
+    if (errors.length > 0) {
+      setActionError(
+        `${errors.join(", ")}. Please make sure the backend server is running on port 8081 and you are logged in as Super Admin.`
+      );
+    } else {
+      setActionError("");
+    }
+
+    setLoading(false);
   };
 
   // ==================== STAFF ACTIONS ====================
@@ -321,6 +453,39 @@ export default function CombinedDashboard() {
     }
   };
 
+  const handleResetPassword = async ({ newPassword, confirmPassword }) => {
+    if (!resetModal) return;
+    const { type, user } = resetModal;
+    const request =
+      type === "staff"
+        ? resetStaffPassword(user.userId, { newPassword, confirmPassword })
+        : resetStudentPasswordByAdmin(user.userId, {
+            newPassword,
+            confirmPassword,
+          });
+    const { data } = await request;
+    alert(data?.message || "Password reset successfully");
+    setResetModal(null);
+  };
+
+  // ==================== STUDENT ACTIONS ====================
+
+  const handleToggleStudentStatus = async (student) => {
+    try {
+      const { data } = await updateStudentStatus(
+        student.userId,
+        !student.enabled
+      );
+      setStudents((prev) =>
+        prev.map((s) => (s.userId === student.userId ? data : s))
+      );
+    } catch (err) {
+      alert(
+        err.response?.data?.message || "Failed to update student status"
+      );
+    }
+  };
+
   // ==================== COURSE ACTIONS ====================
 
   const handlePublish = async (courseId) => {
@@ -330,6 +495,16 @@ export default function CombinedDashboard() {
       setCourses(data);
     } catch (err) {
       console.error("Failed to publish:", err);
+    }
+  };
+
+  const handleUnpublish = async (courseId) => {
+    try {
+      await unpublishCourse(courseId);
+      const { data } = await getAllCourses();
+      setCourses(data);
+    } catch (err) {
+      console.error("Failed to unpublish:", err);
     }
   };
 
@@ -405,6 +580,16 @@ export default function CombinedDashboard() {
     },
   ];
 
+  const filteredStudents = students.filter((s) => {
+    const q = studentSearch.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      `${s.firstName || ""} ${s.lastName || ""}`.toLowerCase().includes(q) ||
+      (s.email || "").toLowerCase().includes(q) ||
+      (s.username || "").toLowerCase().includes(q)
+    );
+  });
+
   return (
     <div className="min-h-screen bg-slate-50">
       <Header />
@@ -420,13 +605,13 @@ export default function CombinedDashboard() {
                 : "Course management"}
             </p>
           </div>
-          <Link
+          {/* <Link
             to="/admin/courses/new"
             className="flex items-center gap-2 bg-[#00A86B] hover:bg-[#008f5a] text-white font-semibold px-5 py-2.5 rounded-xl shadow-md hover:shadow-lg transition-all duration-200"
           >
             <Plus className="w-4 h-4" />
             Add Course
-          </Link>
+          </Link> */}
         </div>
 
         {actionError && (
@@ -496,7 +681,16 @@ export default function CombinedDashboard() {
               <h2 className="text-lg font-bold text-[#0B2545]">
                 Staff Members
               </h2>
-              <UserCog className="w-5 h-5 text-slate-400" />
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setModal({ staff: null })}
+                  className="flex items-center gap-1.5 text-sm font-semibold text-[#00A86B] hover:text-[#008f5a] transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Staff
+                </button>
+                <UserCog className="w-5 h-5 text-slate-400" />
+              </div>
             </div>
 
             {staff.length === 0 ? (
@@ -588,6 +782,15 @@ export default function CombinedDashboard() {
                               <Send className="w-4 h-4" />
                             </button>
                             <button
+                              onClick={() =>
+                                setResetModal({ type: "staff", user: member })
+                              }
+                              className="p-1.5 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                              title="Reset password"
+                            >
+                              <KeyRound className="w-4 h-4" />
+                            </button>
+                            <button
                               onClick={() => handleToggleStatus(member)}
                               className={`p-1.5 rounded-lg transition-colors ${
                                 member.enabled
@@ -616,11 +819,149 @@ export default function CombinedDashboard() {
           </div>
         )}
 
+        {/* Student management — super admin only */}
+        {isSuperAdmin && (
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 mb-8">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+              <h2 className="text-lg font-bold text-[#0B2545]">
+                All Students
+                <span className="ml-2 text-sm font-medium text-slate-400">
+                  ({students.length})
+                </span>
+              </h2>
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={studentSearch}
+                  onChange={(e) => setStudentSearch(e.target.value)}
+                  placeholder="Search students..."
+                  className="pl-9 pr-4 py-2 text-sm bg-slate-50 rounded-xl border border-slate-200 focus:border-[#00A86B] focus:bg-white focus:outline-none transition-all duration-200 w-full sm:w-64"
+                />
+              </div>
+            </div>
+
+            {filteredStudents.length === 0 ? (
+              <div className="text-center py-12">
+                <GraduationCap className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                <p className="text-slate-500">
+                  {studentSearch
+                    ? "No students match your search"
+                    : "No students registered yet"}
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-100">
+                      <th className="text-left py-3 px-4 font-semibold text-slate-600">
+                        Student
+                      </th>
+                      <th className="text-left py-3 px-4 font-semibold text-slate-600 hidden md:table-cell">
+                        Username
+                      </th>
+                      <th className="text-left py-3 px-4 font-semibold text-slate-600 hidden lg:table-cell">
+                        Mobile
+                      </th>
+                      <th className="text-left py-3 px-4 font-semibold text-slate-600">
+                        Status
+                      </th>
+                      <th className="text-left py-3 px-4 font-semibold text-slate-600 hidden lg:table-cell">
+                        Registered
+                      </th>
+                      <th className="text-left py-3 px-4 font-semibold text-slate-600">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredStudents.map((student) => (
+                      <tr
+                        key={student.userId}
+                        className="border-b border-slate-50 hover:bg-slate-50 transition-colors"
+                      >
+                        <td className="py-3 px-4">
+                          <span className="font-semibold text-[#0B2545] block">
+                            {student.firstName} {student.lastName || ""}
+                          </span>
+                          <span className="text-xs text-slate-400 flex items-center gap-1">
+                            <Mail className="w-3 h-3" />
+                            {student.email}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-slate-500 hidden md:table-cell">
+                          {student.username || "-"}
+                        </td>
+                        <td className="py-3 px-4 text-slate-500 hidden lg:table-cell">
+                          {student.mobileNumber || "-"}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span
+                            className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                              student.enabled
+                                ? "bg-green-50 text-green-600"
+                                : "bg-red-50 text-red-500"
+                            }`}
+                          >
+                            {student.enabled ? "Active" : "Disabled"}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-slate-500 text-xs hidden lg:table-cell">
+                          {student.registeredAt
+                            ? new Date(student.registeredAt).toLocaleDateString()
+                            : "-"}
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() =>
+                                setResetModal({
+                                  type: "student",
+                                  user: student,
+                                })
+                              }
+                              className="p-1.5 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                              title="Reset password"
+                            >
+                              <KeyRound className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleToggleStudentStatus(student)}
+                              className={`p-1.5 rounded-lg transition-colors ${
+                                student.enabled
+                                  ? "text-amber-500 hover:text-amber-700 hover:bg-amber-50"
+                                  : "text-green-500 hover:text-green-700 hover:bg-green-50"
+                              }`}
+                              title={student.enabled ? "Disable" : "Enable"}
+                            >
+                              <Power className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Course management */}
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-lg font-bold text-[#0B2545]">All Courses</h2>
-            <BookOpen className="w-5 h-5 text-slate-400" />
+            <div className="flex items-center gap-3">
+              <Link
+                to="/admin/courses/new"
+                className="flex items-center gap-1.5 text-sm font-semibold text-[#00A86B] hover:text-[#008f5a] transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Add Course
+              </Link>
+              <BookOpen className="w-5 h-5 text-slate-400" />
+            </div>
           </div>
 
           {courses.length === 0 ? (
@@ -725,12 +1066,19 @@ export default function CombinedDashboard() {
                           >
                             Content
                           </Link>
-                          {course.status !== "PUBLISHED" && (
+                          {course.status !== "PUBLISHED" ? (
                             <button
                               onClick={() => handlePublish(course.id)}
                               className="text-xs text-emerald-600 hover:underline font-semibold"
                             >
                               Publish
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleUnpublish(course.id)}
+                              className="text-xs text-amber-600 hover:underline font-semibold"
+                            >
+                              Unpublish
                             </button>
                           )}
                           <button
@@ -770,6 +1118,16 @@ export default function CombinedDashboard() {
           onSave={handleSave}
           onClose={() => setModal(null)}
           saving={saving}
+        />
+      )}
+
+      {resetModal && (
+        <ResetPasswordModal
+          title={`Reset Password — ${resetModal.user.firstName || ""} ${
+            resetModal.user.lastName || ""
+          }`.trim()}
+          onSave={handleResetPassword}
+          onClose={() => setResetModal(null)}
         />
       )}
     </div>

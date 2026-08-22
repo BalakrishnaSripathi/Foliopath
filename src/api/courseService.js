@@ -63,6 +63,14 @@ export const publishCourse = (courseId) => {
   return api.post(`/api/courses/${courseId}/publish`);
 };
 
+export const unpublishCourse = (courseId) => {
+  return api.post(`/api/courses/${courseId}/unpublish`);
+};
+
+export const archiveCourse = (courseId) => {
+  return api.post(`/api/courses/${courseId}/archive`);
+};
+
 // ==================== MODULES ====================
 
 export const getModules = (courseId) => {
@@ -90,6 +98,16 @@ export const updateModule = (courseId, moduleId, data) => {
 
 export const deleteModule = (courseId, moduleId) => {
   return api.delete(`/api/courses/${courseId}/modules/${moduleId}`);
+};
+
+export const getModuleById = (courseId, moduleId) => {
+  return api.get(`/api/courses/${courseId}/modules/${moduleId}`);
+};
+
+export const reorderModules = (courseId, modules) => {
+  return api.patch(`/api/courses/${courseId}/modules/reorder`, {
+    entries: modules.map((m, i) => ({ id: m.id, displayOrder: i + 1 })),
+  });
 };
 
 // ==================== LESSONS ====================
@@ -154,6 +172,48 @@ export const updateLesson = (moduleId, lessonId, data) => {
 
 export const deleteLesson = (moduleId, lessonId) => {
   return api.delete(`/api/modules/${moduleId}/lessons/${lessonId}`);
+};
+
+export const reorderLessons = (moduleId, lessons) => {
+  return api.patch(`/api/modules/${moduleId}/lessons/reorder`, {
+    entries: lessons.map((l, i) => ({ id: l.id, displayOrder: i + 1 })),
+  });
+};
+
+// ==================== LESSON ITEMS ====================
+
+export const addLessonItem = (moduleId, lessonId, data, index = 0) => {
+  return api.post(`/api/modules/${moduleId}/lessons/${lessonId}/items`, {
+    title: data.title,
+    description: data.description || "",
+    content: data.content || "",
+    codeContent: data.codeContent || "",
+    codeLanguage: data.codeLanguage || "",
+    displayOrder: Number(data.displayOrder) || index + 1,
+  });
+};
+
+export const updateLessonItem = (moduleId, lessonId, itemId, data) => {
+  return api.put(`/api/modules/${moduleId}/lessons/${lessonId}/items/${itemId}`, {
+    title: data.title,
+    description: data.description || "",
+    content: data.content || "",
+    codeContent: data.codeContent || "",
+    codeLanguage: data.codeLanguage || "",
+    displayOrder: Number(data.displayOrder) || 1,
+  });
+};
+
+export const deleteLessonItem = (moduleId, lessonId, itemId) => {
+  return api.delete(
+    `/api/modules/${moduleId}/lessons/${lessonId}/items/${itemId}`
+  );
+};
+
+export const reorderLessonItems = (moduleId, lessonId, items) => {
+  return api.patch(`/api/modules/${moduleId}/lessons/${lessonId}/items/reorder`, {
+    entries: items.map((it, i) => ({ id: it.id, displayOrder: i + 1 })),
+  });
 };
 
 // ==================== DASHBOARD ====================

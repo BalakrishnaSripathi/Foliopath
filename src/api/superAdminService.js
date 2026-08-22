@@ -50,6 +50,43 @@ export const resendStaffSetupLink = (id) => {
   return api.post(`/api/super-admin/staff/${id}/resend-setup-link`);
 };
 
+export const resetStaffPassword = (id, { newPassword, confirmPassword }) => {
+  return api.patch(`/api/super-admin/staff/${id}/reset-password`, {
+    newPassword,
+    confirmPassword,
+  });
+};
+
 export const deleteStaff = (id) => {
   return api.delete(`/api/super-admin/staff/${id}`);
+};
+
+// ==================== STUDENT MANAGEMENT ====================
+
+export const getAllStudents = (search) => {
+  return api.get("/api/super-admin/students", {
+    params: search ? { search } : undefined,
+  });
+};
+
+export const getStudentDetail = (id) => {
+  return api.get(`/api/super-admin/students/${id}`);
+};
+
+export const getStudentProfileById = (id) => {
+  return api.get(`/api/super-admin/students/${id}/profile`);
+};
+
+export const updateStudentStatus = (id, enabled) => {
+  return api.patch(`/api/super-admin/students/${id}/status`, { enabled });
+};
+
+export const resetStudentPasswordByAdmin = (
+  id,
+  { newPassword, confirmPassword }
+) => {
+  return api.patch(`/api/super-admin/students/${id}/reset-password`, {
+    newPassword,
+    confirmPassword,
+  });
 };
