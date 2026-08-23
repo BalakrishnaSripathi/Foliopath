@@ -5,10 +5,10 @@ import Logo from "../common/Logo";
 import { useAuth } from "../../context/AuthContext";
 
 const navLinks = [
-  { label: "Home", href: "#home" },
+  { label: "Home", href: "/" },
   { label: "Courses", href: "/courses" },
   { label: "About Us", href: "#about" },
-  { label: "Instructors", href: "#instructors" },
+  // { label: "Instructors", href: "#instructors" },
   { label: "Contact", href: "#contact" },
 ];
 

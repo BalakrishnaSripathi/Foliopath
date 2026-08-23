@@ -116,7 +116,11 @@ function App() {
           />
           <Route
             path="/mock-tests/:mockTestId"
-            element={<MockTestView />}
+            element={
+              <ProtectedRoute allowedRoles={["STUDENT"]}>
+                <MockTestView />
+              </ProtectedRoute>
+            }
           />
         </Routes>
       </BrowserRouter>
