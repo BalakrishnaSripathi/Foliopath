@@ -1,5 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { Toaster } from 'react-hot-toast'
 import AOS from 'aos'
 import 'aos/dist/aos.css'
 import './index.css'
@@ -16,5 +17,9 @@ AOS.init({
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <App />
+    <Toaster
+      position="top-center"
+      toastOptions={{ duration: 4000 }}
+    />
   </StrictMode>,
 )

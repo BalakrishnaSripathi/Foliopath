@@ -5,22 +5,36 @@ import {
   BadgeCheck,
   UserCircle,
   Search,
+  PlayCircle,
 } from "lucide-react";
 import { getStudentDashboard } from "../../api/studentService";
+import { getMyEnrollments } from "../../api/enrollmentService";
 import Header from "../../components/layout/Header";
+
+const ENROLLMENT_BADGES = {
+  ENROLLED: "bg-blue-50 text-blue-600",
+  IN_PROGRESS: "bg-amber-50 text-amber-600",
+  COMPLETED: "bg-green-50 text-green-600",
+};
 
 export default function StudentDashboard() {
   const [dashboard, setDashboard] = useState(null);
+  const [enrollments, setEnrollments] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadDashboard();
+    loadData();
   }, []);
 
-  const loadDashboard = async () => {
+  const loadData = async () => {
     try {
-      const { data } = await getStudentDashboard();
+      const [{ data }, enrollRes] = await Promise.all([
+        getStudentDashboard(),
+        getMyEnrollments().catch(() => ({ data: [] })),
+      ]);
       setDashboard(data);
+      const list = Array.isArray(enrollRes.data) ? enrollRes.data : [];
+      setEnrollments(list.filter((e) => e.enrollmentStatus !== "DROPPED"));
     } catch (err) {
       console.error("Failed to load dashboard:", err);
     } finally {
@@ -138,8 +152,75 @@ export default function StudentDashboard() {
           </Link>
         </div>
 
+        {/* Enrolled courses */}
+        {enrollments.length > 0 && (
+          <div className="mb-8">
+            <h2 className="text-lg font-bold text-[#0B2545] mb-4">
+              My Courses ({enrollments.length})
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {enrollments.map((course) => (
+                <div
+                  key={course.courseId}
+                  className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden hover:shadow-lg transition-all duration-300 group"
+                >
+                  <Link to={`/courses/${course.courseId}`} className="block h-36 overflow-hidden">
+                    {course.thumbnailUrl ? (
+                      <img
+                        src={course.thumbnailUrl}
+                        alt={course.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-[#0B2545] to-[#13315c] flex items-center justify-center">
+                        <span className="text-2xl font-black text-[#00A86B]">
+                          {(course.title || "F").charAt(0)}
+                        </span>
+                      </div>
+                    )}
+                  </Link>
+                  <div className="p-5 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="font-bold text-sm text-[#0B2545] line-clamp-1">
+                        {course.title}
+                      </h3>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap ${
+                          ENROLLMENT_BADGES[course.enrollmentStatus] ||
+                          "bg-slate-100 text-slate-500"
+                        }`}
+                      >
+                        {course.enrollmentStatus?.replace("_", " ")}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-[#00A86B] rounded-full transition-all duration-300"
+                          style={{ width: `${course.progressPercentage || 0}%` }}
+                        />
+                      </div>
+                      <span className="text-xs font-semibold text-slate-500 w-9 text-right">
+                        {course.progressPercentage || 0}%
+                      </span>
+                    </div>
+                    <Link
+                      to={`/courses/${course.courseId}`}
+                      className="flex items-center justify-center gap-1.5 w-full py-2 bg-emerald-50 text-[#00A86B] hover:bg-[#00A86B] hover:text-white rounded-lg text-sm font-semibold transition-all duration-200"
+                    >
+                      <PlayCircle className="w-4 h-4" />
+                      Continue Learning
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Getting started */}
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 text-center">
+        {enrollments.length === 0 && (
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 text-center">
           <BookOpen className="w-12 h-12 text-slate-300 mx-auto mb-4" />
           <h2 className="text-lg font-bold text-[#0B2545] mb-2">
             Start your learning journey
@@ -154,7 +235,8 @@ export default function StudentDashboard() {
           >
             Explore Courses
           </Link>
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

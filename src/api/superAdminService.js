@@ -90,3 +90,16 @@ export const resetStudentPasswordByAdmin = (
     confirmPassword,
   });
 };
+
+// ==================== STUDENT REPORTS (SUPER_ADMIN + STAFF) ====================
+
+export const getAllStudentsReport = (search) => {
+  return api.get("/api/reports/students", {
+    params: search ? { search } : undefined,
+  });
+};
+
+// Status + enrolled courses + performance summary + mock test scores
+export const getStudentPerformance = (id) => {
+  return api.get(`/api/reports/students/${id}/performance`);
+};

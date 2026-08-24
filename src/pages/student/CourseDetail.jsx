@@ -8,13 +8,20 @@ import {
   ChevronRight,
   PlayCircle,
   ClipboardList,
+  Lock,
+  CheckCircle2,
 } from "lucide-react";
+import { toast } from "react-hot-toast";
 import {
   getCourseById,
   getModules,
   getLessons,
 } from "../../api/courseService";
 import { getMockTests } from "../../api/mockTestService";
+import {
+  enrollInCourse,
+  getEnrollment,
+} from "../../api/enrollmentService";
 import { useAuth } from "../../context/AuthContext";
 import Header from "../../components/layout/Header";
 
@@ -24,22 +31,36 @@ const levelLabels = {
   ADVANCED: "Advanced",
 };
 
+const PREVIEW_MODULE_COUNT = 3;
+
 export default function CourseDetail() {
   const { courseId } = useParams();
   const navigate = useNavigate();
   const { isAuthenticated, role } = useAuth();
+  const isStudent = role === "STUDENT";
   const [course, setCourse] = useState(null);
   const [modules, setModules] = useState([]);
   const [lessonsByModule, setLessonsByModule] = useState({});
   const [mockTestsByModule, setMockTestsByModule] = useState({});
   const [loading, setLoading] = useState(true);
   const [expandedModule, setExpandedModule] = useState(null);
+  const [enrollment, setEnrollment] = useState(null);
+  const [enrolling, setEnrolling] = useState(false);
+
+  // Enrollment unlocks the full course content; without it only the
+  // first few modules are shown as a free preview.
+  const isEnrolled = !!enrollment;
+  const unlockedModules = isEnrolled
+    ? modules.length
+    : Math.min(PREVIEW_MODULE_COUNT, modules.length);
 
   useEffect(() => {
     loadData();
-  }, [courseId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [courseId, isAuthenticated]);
 
   const loadData = async () => {
+    setLoading(true);
     try {
       const [courseRes, modulesRes] = await Promise.all([
         getCourseById(courseId),
@@ -48,6 +69,15 @@ export default function CourseDetail() {
       setCourse(courseRes.data);
       const mods = modulesRes.data;
       setModules(mods);
+
+      if (isAuthenticated && isStudent) {
+        try {
+          const { data } = await getEnrollment(courseId);
+          setEnrollment(data);
+        } catch {
+          setEnrollment(null);
+        }
+      }
 
       const results = await Promise.all(
         mods.map((m) =>
@@ -74,12 +104,56 @@ export default function CourseDetail() {
     }
   };
 
+  const handleEnroll = async () => {
+    if (!isAuthenticated) {
+      navigate("/login");
+      return;
+    }
+    if (!isStudent) return;
+    if (isEnrolled) {
+      navigate("/my-courses");
+      return;
+    }
+    setEnrolling(true);
+    try {
+      await enrollInCourse(courseId);
+      const { data } = await getEnrollment(courseId);
+      setEnrollment(data);
+      toast.success("Enrolled successfully! Full course content unlocked.", {
+        iconTheme: { primary: "#00A86B", secondary: "#fff" },
+      });
+    } catch (err) {
+      console.error("Failed to enroll:", err);
+      toast.error(
+        err.response?.data?.message || "Failed to enroll in this course"
+      );
+    } finally {
+      setEnrolling(false);
+    }
+  };
+
   const handleViewLesson = (moduleId, lessonId) => {
+    if (!isEnrolled) {
+      promptEnroll();
+      return;
+    }
     navigate(`/lessons/${moduleId}/${lessonId}`);
   };
 
   const handleViewMockTest = (mockTestId) => {
+    if (!isEnrolled) {
+      promptEnroll();
+      return;
+    }
     navigate(`/mock-tests/${mockTestId}`);
+  };
+
+  const promptEnroll = () => {
+    if (!isAuthenticated) {
+      navigate("/login");
+      return;
+    }
+    toast.error("Enroll in this course to unlock its content");
   };
 
   if (loading) {
@@ -102,6 +176,20 @@ export default function CourseDetail() {
     (acc, lessons) => acc + lessons.length,
     0
   );
+
+  const sortedModules = [...modules].sort(
+    (a, b) => (a.displayOrder || 0) - (b.displayOrder || 0)
+  );
+
+  const enrollButtonLabel = !isAuthenticated
+    ? "Enroll Now"
+    : !isStudent
+    ? "Students Only"
+    : isEnrolled
+    ? "Start Learning"
+    : enrolling
+    ? "Enrolling..."
+    : "Enroll Now";
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -150,22 +238,34 @@ export default function CourseDetail() {
                   className="w-full h-40 object-cover rounded-xl mb-4"
                 />
               )}
-              <div className="text-3xl font-black mb-4">
+              <div className="text-3xl font-black mb-1">
                 ₹{course.price || 0}
               </div>
+              {(course.price || 0) > 0 && (
+                <p className="text-xs text-slate-400 mb-4">
+                  One-time payment &middot; lifetime access
+                </p>
+              )}
 
               <button
-                onClick={() => {
-                  if (!isAuthenticated) {
-                    navigate("/login");
-                  } else if (role === "STUDENT") {
-                    navigate("/my-courses");
-                  }
-                }}
-                className="w-full py-3 bg-[#00A86B] hover:bg-[#008f5a] text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all duration-200"
+                onClick={handleEnroll}
+                disabled={(isAuthenticated && !isStudent) || enrolling}
+                className="w-full py-3 bg-[#00A86B] hover:bg-[#008f5a] text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {isAuthenticated ? "Go to Dashboard" : "Enroll Now"}
+                {enrollButtonLabel}
               </button>
+
+              {!isAuthenticated && (
+                <p className="text-xs text-slate-400 mt-2 text-center">
+                  You'll be asked to log in as a student
+                </p>
+              )}
+              {isEnrolled && (
+                <p className="mt-3 flex items-center justify-center gap-1.5 text-xs font-semibold text-[#00A86B]">
+                  <CheckCircle2 className="w-4 h-4" />
+                  You are enrolled in this course
+                </p>
+              )}
 
               <div className="mt-4 space-y-2 text-sm text-slate-600">
                 <div className="flex items-center gap-2">
@@ -199,115 +299,175 @@ export default function CourseDetail() {
 
             {/* Curriculum */}
             <section>
-              <h2 className="text-xl font-bold text-[#0B2545] mb-4">
+              <h2 className="text-xl font-bold text-[#0B2545] mb-1">
                 Curriculum
               </h2>
+              <p className="text-xs text-slate-500 mb-4">
+                {isEnrolled ? (
+                  "All modules unlocked — start learning!"
+                ) : (
+                  <>
+                    Free preview:{" "}
+                    <span className="font-semibold text-[#00A86B]">
+                      first {PREVIEW_MODULE_COUNT} modules
+                    </span>{" "}
+                    — enroll to unlock all content
+                  </>
+                )}
+              </p>
               <div className="space-y-3">
-                {modules
-                  .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0))
-                  .map((mod) => {
-                    const lessons = lessonsByModule[mod.id] || [];
-                    return (
-                      <div
-                        key={mod.id}
-                        className="bg-white rounded-2xl border border-slate-100 overflow-hidden"
-                      >
-                        <button
-                          onClick={() =>
-                            setExpandedModule(
-                              expandedModule === mod.id ? null : mod.id
-                            )
+                {sortedModules.map((mod, index) => {
+                  const lessons = lessonsByModule[mod.id] || [];
+                  const locked = index >= unlockedModules;
+                  const isExpanded = expandedModule === mod.id;
+                  return (
+                    <div
+                      key={mod.id}
+                      className={`bg-white rounded-2xl border overflow-hidden ${
+                        locked ? "border-slate-100 opacity-80" : "border-slate-100"
+                      }`}
+                    >
+                      <button
+                        onClick={() => {
+                          if (locked) {
+                            promptEnroll();
+                            return;
                           }
-                          className="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-colors"
-                        >
-                          <div className="flex items-center gap-3">
-                            {expandedModule === mod.id ? (
-                              <ChevronDown className="w-5 h-5 text-slate-400" />
-                            ) : (
-                              <ChevronRight className="w-5 h-5 text-slate-400" />
-                            )}
-                            <span className="font-semibold text-[#0B2545]">
-                              Module {mod.displayOrder}: {mod.title}
-                            </span>
-                          </div>
-                          <span className="text-xs text-slate-400">
-                            {lessons.length} lessons
-                            {(mockTestsByModule[mod.id] || []).length > 0 &&
-                              ` · ${(mockTestsByModule[mod.id] || []).length} mock test${
-                                (mockTestsByModule[mod.id] || []).length > 1 ? "s" : ""
-                              }`}
+                          setExpandedModule(isExpanded ? null : mod.id);
+                        }}
+                        className="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-colors text-left"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          {locked ? (
+                            <Lock className="w-5 h-5 text-slate-300 flex-shrink-0" />
+                          ) : isExpanded ? (
+                            <ChevronDown className="w-5 h-5 text-slate-400 flex-shrink-0" />
+                          ) : (
+                            <ChevronRight className="w-5 h-5 text-slate-400 flex-shrink-0" />
+                          )}
+                          <span
+                            className={`font-semibold truncate ${
+                              locked ? "text-slate-400" : "text-[#0B2545]"
+                            }`}
+                          >
+                            Module {mod.displayOrder}: {mod.title}
                           </span>
-                        </button>
+                        </div>
+                        <span className="text-xs text-slate-400 flex-shrink-0 ml-3">
+                          {locked
+                            ? "Locked"
+                            : `${lessons.length} lessons${
+                                (mockTestsByModule[mod.id] || []).length > 0
+                                  ? ` · ${
+                                      (mockTestsByModule[mod.id] || []).length
+                                    } mock test${
+                                      (mockTestsByModule[mod.id] || []).length >
+                                      1
+                                        ? "s"
+                                        : ""
+                                    }`
+                                  : ""
+                              }`}
+                        </span>
+                      </button>
 
-                        {expandedModule === mod.id && (
-                          <div className="border-t border-slate-100">
-                            {lessons.length === 0 && (
-                              <p className="text-sm text-slate-400 text-center py-4">
-                                No lessons in this module yet
-                              </p>
-                            )}
-                            {lessons
-                              .sort(
-                                (a, b) =>
-                                  (a.displayOrder || 0) - (b.displayOrder || 0)
-                              )
-                              .map((lesson) => (
-                                <button
-                                  key={lesson.id}
-                                  onClick={() =>
-                                    handleViewLesson(mod.id, lesson.id)
-                                  }
-                                  className="w-full flex items-center gap-3 px-6 py-3 hover:bg-slate-50 transition-colors text-left border-b border-slate-50 last:border-0"
-                                >
+                      {isExpanded && !locked && (
+                        <div className="border-t border-slate-100">
+                          {lessons.length === 0 && (
+                            <p className="text-sm text-slate-400 text-center py-4">
+                              No lessons in this module yet
+                            </p>
+                          )}
+                          {lessons
+                            .sort(
+                              (a, b) =>
+                                (a.displayOrder || 0) - (b.displayOrder || 0)
+                            )
+                            .map((lesson) => (
+                              <button
+                                key={lesson.id}
+                                onClick={() =>
+                                  handleViewLesson(mod.id, lesson.id)
+                                }
+                                className="w-full flex items-center gap-3 px-6 py-3 hover:bg-slate-50 transition-colors text-left border-b border-slate-50 last:border-0"
+                              >
+                                {isEnrolled ? (
                                   <PlayCircle className="w-4 h-4 text-[#00A86B] flex-shrink-0" />
-                                  <span className="text-sm text-slate-600">
-                                    {lesson.title}
+                                ) : (
+                                  <PlayCircle className="w-4 h-4 text-slate-300 flex-shrink-0" />
+                                )}
+                                <span className="text-sm text-slate-600">
+                                  {lesson.title}
+                                </span>
+                                {lesson.estimatedMinutes && (
+                                  <span className="text-xs text-slate-400 ml-auto">
+                                    {lesson.estimatedMinutes} min
                                   </span>
-                                  {lesson.estimatedMinutes && (
-                                    <span className="text-xs text-slate-400 ml-auto">
-                                      {lesson.estimatedMinutes} min
-                                    </span>
-                                  )}
-                                </button>
-                              ))}
+                                )}
+                              </button>
+                            ))}
 
-                            {(mockTestsByModule[mod.id] || []).length > 0 && (
-                              <>
-                                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide px-6 pt-4 pb-1">
-                                  Mock Tests
-                                </p>
-                                {mockTestsByModule[mod.id]
-                                  .sort(
-                                    (a, b) =>
-                                      (a.displayOrder || 0) - (b.displayOrder || 0)
-                                  )
-                                  .map((test) => (
-                                    <button
-                                      key={test.id}
-                                      onClick={() => handleViewMockTest(test.id)}
-                                      className="w-full flex items-center gap-3 px-6 py-3 hover:bg-slate-50 transition-colors text-left border-b border-slate-50 last:border-0"
-                                    >
-                                      <ClipboardList className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                                      <span className="text-sm text-slate-600">
-                                        {test.title}
-                                      </span>
-                                      <span className="text-xs text-slate-400 ml-auto">
-                                        {(test.questions || []).length} questions &middot;{" "}
-                                        {test.durationMinutes} min
-                                      </span>
-                                    </button>
-                                  ))}
-                              </>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                          {(mockTestsByModule[mod.id] || []).length > 0 && (
+                            <>
+                              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide px-6 pt-4 pb-1">
+                                Mock Tests
+                              </p>
+                              {mockTestsByModule[mod.id]
+                                .sort(
+                                  (a, b) =>
+                                    (a.displayOrder || 0) -
+                                    (b.displayOrder || 0)
+                                )
+                                .map((test) => (
+                                  <button
+                                    key={test.id}
+                                    onClick={() => handleViewMockTest(test.id)}
+                                    className="w-full flex items-center gap-3 px-6 py-3 hover:bg-slate-50 transition-colors text-left border-b border-slate-50 last:border-0"
+                                  >
+                                    <ClipboardList className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                                    <span className="text-sm text-slate-600">
+                                      {test.title}
+                                    </span>
+                                    <span className="text-xs text-slate-400 ml-auto">
+                                      {(test.questions || []).length} questions
+                                      &middot; {test.durationMinutes} min
+                                    </span>
+                                  </button>
+                                ))}
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
               {modules.length === 0 && (
                 <div className="bg-white rounded-2xl border border-slate-100 p-6 text-center text-sm text-slate-400">
                   Course curriculum coming soon
+                </div>
+              )}
+
+              {/* Enroll CTA under curriculum */}
+              {modules.length > unlockedModules && (
+                <div className="mt-4 bg-gradient-to-r from-[#0B2545] to-[#13315c] rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="text-white">
+                    <p className="font-bold">
+                      {modules.length - unlockedModules} more module
+                      {modules.length - unlockedModules > 1 ? "s" : ""} waiting
+                    </p>
+                    <p className="text-xs text-slate-300 mt-0.5">
+                      Enroll now to unlock the full course content, lessons and
+                      mock tests
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleEnroll}
+                    disabled={enrolling || (isAuthenticated && !isStudent)}
+                    className="flex-shrink-0 px-6 py-2.5 bg-[#00A86B] hover:bg-[#008f5a] text-white text-sm font-bold rounded-xl shadow-md transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {enrolling ? "Enrolling..." : "Enroll Now"}
+                  </button>
                 </div>
               )}
             </section>

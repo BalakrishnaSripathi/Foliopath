@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Code } from "lucide-react";
+import { ArrowLeft, Code, Lock } from "lucide-react";
 import { getLesson } from "../../api/courseService";
+import { useAuth } from "../../context/AuthContext";
 import Header from "../../components/layout/Header";
 
 const looksLikeHtml = (str) => /<\/?[a-z][\s\S]*>/i.test(str || "");
@@ -168,6 +169,7 @@ function renderRawLessonContent(lesson) {
 export default function LessonView() {
   const { moduleId, lessonId } = useParams();
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
   const [lesson, setLesson] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -198,6 +200,62 @@ export default function LessonView() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <p className="text-slate-500">Lesson not found</p>
+      </div>
+    );
+  }
+
+  // Course content is locked until the student enrolls in the course
+  // (the backend withholds content and sets locked = true).
+  const isLocked = !!lesson.locked;
+
+  if (isLocked) {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <Header />
+        <div className="max-w-lg mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-10">
+            <div className="w-16 h-16 mx-auto rounded-full bg-slate-100 flex items-center justify-center mb-5">
+              <Lock className="w-8 h-8 text-slate-400" />
+            </div>
+            <h1 className="text-xl font-bold text-[#0B2545]">
+              This lesson is locked
+            </h1>
+            {lesson.title && (
+              <p className="text-xs text-slate-400 mt-1">{lesson.title}</p>
+            )}
+            <p className="text-sm text-slate-500 mt-3 leading-relaxed">
+              Enroll in this course to unlock all lessons, content and mock
+              tests. The first modules are available as a free preview on the
+              course page.
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-6">
+              <button
+                onClick={() =>
+                  lesson.courseId
+                    ? navigate(`/courses/${lesson.courseId}`)
+                    : navigate("/courses")
+                }
+                className="px-6 py-2.5 bg-[#00A86B] hover:bg-[#008f5a] text-white text-sm font-bold rounded-xl shadow-md transition-all duration-200"
+              >
+                Go to Course &amp; Enroll
+              </button>
+              {!isAuthenticated && (
+                <button
+                  onClick={() => navigate("/login")}
+                  className="px-6 py-2.5 bg-white border border-slate-200 text-[#0B2545] text-sm font-semibold rounded-xl hover:bg-slate-50 transition-all duration-200"
+                >
+                  Login
+                </button>
+              )}
+              <button
+                onClick={() => navigate(-1)}
+                className="text-sm font-semibold text-slate-500 hover:text-slate-700 transition-colors"
+              >
+                Back
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }

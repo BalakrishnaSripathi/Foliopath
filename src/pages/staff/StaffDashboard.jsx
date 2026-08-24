@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { BadgeCheck, Building2, Briefcase, GraduationCap } from "lucide-react";
 import { getStaffDashboard } from "../../api/staffService";
 import Header from "../../components/layout/Header";
+import ContactUsTable from "../../components/contact/ContactUsTable";
+import AllStudentsTable from "../../components/admin/AllStudentsTable";
 
 export default function StaffDashboard() {
   const [dashboard, setDashboard] = useState(null);
@@ -97,6 +99,14 @@ export default function StaffDashboard() {
             </div>
           ))}
         </div>
+
+        {/* All students with status / enrolled courses / performance / mock test scores */}
+        <div className="mt-8">
+          <AllStudentsTable isSuperAdmin={false} />
+        </div>
+
+        {/* Contact Us submissions */}
+        <ContactUsTable />
       </div>
     </div>
   );

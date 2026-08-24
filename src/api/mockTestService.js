@@ -65,3 +65,8 @@ export const deleteMockTest = (mockTestId) => {
 export const submitMockTestAttempt = (mockTestId, answers) => {
   return api.post(`/api/mock-tests/${mockTestId}/attempts`, { answers });
 };
+
+// The current student's existing attempt for this test (404 if none yet).
+export const getMyMockTestAttempt = (mockTestId) => {
+  return api.get(`/api/mock-tests/${mockTestId}/my-attempt`);
+};

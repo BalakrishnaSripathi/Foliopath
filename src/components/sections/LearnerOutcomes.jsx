@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from "react-router-dom";
 import { CheckCircle2 } from "lucide-react";
 
 const benefits = [
@@ -57,13 +58,14 @@ export default function LearnerOutcomes() {
               ))}
             </div>
 
-            <button
+            <Link
+              to="/courses"
               data-aos="fade-up"
               data-aos-delay="500"
-              className="px-6 py-3 bg-[#00A86B] text-white font-semibold rounded-full shadow hover:bg-[#008f5a] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.97]"
+              className="inline-block px-6 py-3 bg-[#00A86B] text-white font-semibold rounded-full shadow hover:bg-[#008f5a] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.97]"
             >
               Explore Courses
-            </button>
+            </Link>
           </div>
         </div>
       </div>

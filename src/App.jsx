@@ -15,6 +15,7 @@ import CourseCatalog from "./pages/student/CourseCatalog";
 import CourseDetail from "./pages/student/CourseDetail";
 import LessonView from "./pages/student/LessonView";
 import MockTestView from "./pages/student/MockTestView";
+import MockTestResultPage from "./pages/student/MockTestResultPage";
 import StudentDashboard from "./pages/student/StudentDashboard";
 import StudentProfile from "./pages/student/StudentProfile";
 
@@ -119,6 +120,14 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={["STUDENT"]}>
                 <MockTestView />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/mock-tests/:mockTestId/result"
+            element={
+              <ProtectedRoute allowedRoles={["STUDENT"]}>
+                <MockTestResultPage />
               </ProtectedRoute>
             }
           />

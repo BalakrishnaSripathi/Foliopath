@@ -5,10 +5,13 @@ import {
   ClipboardList,
   Clock,
   Target,
-  CheckCircle2,
-  XCircle,
+  Lock,
 } from "lucide-react";
-import { getMockTest, submitMockTestAttempt } from "../../api/mockTestService";
+import {
+  getMockTest,
+  submitMockTestAttempt,
+  getMyMockTestAttempt,
+} from "../../api/mockTestService";
 import Header from "../../components/layout/Header";
 
 export default function MockTestView() {
@@ -18,17 +21,38 @@ export default function MockTestView() {
   const [loading, setLoading] = useState(true);
   const [answers, setAnswers] = useState({});
   const [submitting, setSubmitting] = useState(false);
-  const [result, setResult] = useState(null);
 
   useEffect(() => {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mockTestId]);
 
+  const goForResult = (result) => {
+    navigate(`/mock-tests/${mockTestId}/result`, {
+      replace: true,
+      state: { result },
+    });
+  };
+
   const loadData = async () => {
     try {
+      // A student can take each mock test only once — if an attempt
+      // already exists jump straight to the result page.
+      let existingResult = null;
+      try {
+        const { data } = await getMyMockTestAttempt(mockTestId);
+        existingResult = data;
+      } catch {
+        existingResult = null;
+      }
+
       const { data } = await getMockTest(mockTestId);
       setTest(data);
+
+      if (existingResult) {
+        goForResult(existingResult);
+        return;
+      }
     } catch (err) {
       console.error("Failed to load mock test:", err);
     } finally {
@@ -49,14 +73,26 @@ export default function MockTestView() {
     }
     setSubmitting(true);
     try {
-      const payload = { mockTestId, submittedAt: new Date().toISOString(), answers };
-      console.log("Submitting mock test attempt:", payload);
       const { data } = await submitMockTestAttempt(mockTestId, answers);
-      setResult(data);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      navigate(`/mock-tests/${mockTestId}/result`, {
+        state: { result: data },
+      });
     } catch (err) {
       console.error("Failed to submit mock test:", err);
-      alert(err.message || "Failed to submit mock test");
+      if (err.response?.status === 409 || err.response?.status === 400) {
+        alert(
+          err.response?.data?.message ||
+            "You have already taken this mock test."
+        );
+        try {
+          const { data } = await getMyMockTestAttempt(mockTestId);
+          goForResult(data);
+        } catch {
+          navigate("/my-courses");
+        }
+      } else {
+        alert(err.message || "Failed to submit mock test");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -115,41 +151,20 @@ export default function MockTestView() {
                   <Target className="w-4 h-4 text-slate-400" />
                   Pass: {test.passPercentage}%
                 </span>
+                <span className="flex items-center gap-1.5">
+                  <Lock className="w-4 h-4 text-slate-400" />
+                  One attempt only
+                </span>
               </div>
             </div>
           </div>
         </div>
 
-        {result && (
-          <div
-            className={`mb-6 rounded-2xl border p-5 ${
-              result.passed
-                ? "bg-green-50 border-green-200"
-                : "bg-red-50 border-red-200"
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              {result.passed ? (
-                <CheckCircle2 className="w-8 h-8 text-green-600 flex-shrink-0" />
-              ) : (
-                <XCircle className="w-8 h-8 text-red-600 flex-shrink-0" />
-              )}
-              <div>
-                <p
-                  className={`font-bold text-lg ${
-                    result.passed ? "text-green-700" : "text-red-700"
-                  }`}
-                >
-                  {result.passed ? "Passed!" : "Not passed"}
-                </p>
-                <p className="text-sm text-slate-600">
-                  Score: {result.score}/{result.total} &middot;{" "}
-                  {result.percentage}% (pass mark: {test.passPercentage}%)
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
+        <div className="mb-6 p-3 bg-emerald-50 border border-emerald-100 rounded-xl text-xs text-slate-600">
+          You can attempt this mock test{" "}
+          <span className="font-semibold text-[#00A86B]">only once</span>. Your
+          result will be shown right after you submit.
+        </div>
 
         <div className="space-y-4">
           {questions.map((q, idx) => (
@@ -163,15 +178,6 @@ export default function MockTestView() {
                     {idx + 1}
                   </span>
                   <div className="flex-1 min-w-0">
-                    <span
-                      className={`inline-block text-xs px-1.5 py-0.5 rounded mb-2 ${
-                        q.questionType === "CODE"
-                          ? "bg-purple-50 text-purple-600"
-                          : "bg-blue-50 text-blue-600"
-                      }`}
-                    >
-                      {q.questionType}
-                    </span>
                     <p className="text-sm font-semibold text-[#0B2545] whitespace-pre-wrap">
                       {q.questionText}
                     </p>
@@ -202,7 +208,6 @@ export default function MockTestView() {
                           checked={selected}
                           onChange={() => handleSelectOption(q.id, opt.label)}
                           className="accent-[#00A86B]"
-                          disabled={!!result}
                         />
                         <span className="text-xs font-bold text-slate-400">
                           {opt.label}.
@@ -223,7 +228,7 @@ export default function MockTestView() {
           ))}
         </div>
 
-        {!result && questions.length > 0 && (
+        {questions.length > 0 && (
           <div className="mt-6 flex justify-end">
             <button
               onClick={handleSubmit}
