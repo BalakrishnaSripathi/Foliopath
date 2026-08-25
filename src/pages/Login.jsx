@@ -27,6 +27,20 @@ export default function Login() {
   const location = useLocation();
   const successMessage = location.state?.message;
 
+  // Set by the axios interceptor when the token expired or was invalid
+  // and the user was logged out automatically.
+  const [sessionMessage] = useState(() => {
+    try {
+      if (sessionStorage.getItem("auth.sessionExpired")) {
+        sessionStorage.removeItem("auth.sessionExpired");
+        return "Your session has expired or is invalid. Please log in again.";
+      }
+    } catch {
+      /* storage unavailable */
+    }
+    return "";
+  });
+
   const loadCaptcha = useCallback(async () => {
     try {
       const { data } = await getCaptcha();
@@ -109,6 +123,12 @@ export default function Login() {
         </div>
 
         <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-5">
+          {sessionMessage && (
+            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-600">
+              {sessionMessage}
+            </div>
+          )}
+
           {successMessage && (
             <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-xl text-sm text-green-600">
               {successMessage}

@@ -1,9 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { Search, Menu, X, LogOut, User, LayoutDashboard, BookOpen } from "lucide-react";
+import { Search, Menu, X, LogOut, User, LayoutDashboard, BookOpen, ShoppingCart } from "lucide-react";
 import Logo from "../common/Logo";
 import { useAuth } from "../../context/AuthContext";
 import ContactUsMain from "../contact/ContactUsMain";
+import CartDrawer from "../cart/CartDrawer";
+import { getCart } from "../../api/cartService";
 
 const contactLink = { label: "Contact", href: "#contact" };
 
@@ -18,7 +20,33 @@ const navLinks = [
 export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
+  const [cartCount, setCartCount] = useState(0);
+  const [cartOpen, setCartOpen] = useState(false);
   const { isAuthenticated, role, logout } = useAuth();
+
+  const refreshCartCount = useCallback(() => {
+    if (!isAuthenticated || role !== "STUDENT") return;
+    getCart()
+      .then(({ data }) => setCartCount(data?.itemCount ?? data?.items?.length ?? 0))
+      .catch(() => setCartCount(0));
+  }, [isAuthenticated, role]);
+
+  useEffect(() => {
+    refreshCartCount();
+    window.addEventListener("cart:updated", refreshCartCount);
+    return () => window.removeEventListener("cart:updated", refreshCartCount);
+  }, [refreshCartCount]);
+
+  // Open the cart drawer when an item is added
+  useEffect(() => {
+    if (!isAuthenticated || role !== "STUDENT") return;
+    const openDrawer = () => {
+      setMobileMenuOpen(false);
+      setCartOpen(true);
+    };
+    window.addEventListener("cart:open", openDrawer);
+    return () => window.removeEventListener("cart:open", openDrawer);
+  }, [isAuthenticated, role]);
 
   const openContact = () => {
     setMobileMenuOpen(false);
@@ -113,6 +141,22 @@ export default function Header() {
               )}
               {role === "STUDENT" && (
                 <>
+                  <button
+                    type="button"
+                    onClick={() => setCartOpen(true)}
+                    data-aos="fade-down"
+                    data-aos-duration="400"
+                    data-aos-delay="315"
+                    className="relative flex items-center gap-2 text-sm font-semibold text-[#0B2545] hover:text-[#00A86B] px-3 py-2 transition-colors duration-200"
+                  >
+                    <ShoppingCart className="w-4 h-4" />
+                    Cart
+                    {cartCount > 0 && (
+                      <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-[#00A86B] text-white text-[10px] font-bold">
+                        {cartCount}
+                      </span>
+                    )}
+                  </button>
                   <Link
                     to="/my-courses"
                     data-aos="fade-down"
@@ -229,6 +273,17 @@ export default function Header() {
                 )}
                 {role === "STUDENT" && (
                   <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        setCartOpen(true);
+                      }}
+                      className="flex items-center justify-center gap-2 font-semibold text-[#0B2545] py-2 border border-slate-200 rounded-lg transition-colors duration-200 hover:border-[#00A86B] hover:text-[#00A86B]"
+                    >
+                      <ShoppingCart className="w-4 h-4" />
+                      Cart{cartCount > 0 ? ` (${cartCount})` : ""}
+                    </button>
                     <Link
                       to="/my-courses"
                       onClick={() => setMobileMenuOpen(false)}
@@ -278,6 +333,11 @@ export default function Header() {
 
       {/* Contact Us dialog */}
       <ContactUsMain open={contactOpen} onOpenChange={setContactOpen} />
+
+      {/* Cart drawer (students) */}
+      {isAuthenticated && role === "STUDENT" && (
+        <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />
+      )}
     </header>
   );
 }

@@ -30,6 +30,12 @@ const processQueue = (error) => {
 };
 
 const clearAuthAndRedirect = () => {
+  // Flag for the Login page so it can tell the user why they were logged out
+  try {
+    sessionStorage.setItem("auth.sessionExpired", "true");
+  } catch {
+    /* storage unavailable */
+  }
   localStorage.removeItem("accessToken");
   localStorage.removeItem("refreshToken");
   localStorage.removeItem("role");
@@ -75,7 +81,13 @@ api.interceptors.response.use(
         localStorage.setItem("accessToken", data.accessToken);
         api.defaults.headers.common.Authorization = `Bearer ${data.accessToken}`;
         processQueue(null);
-        return api(originalRequest);
+        return api(originalRequest).catch((retryError) => {
+          // Even the refreshed token was rejected -> force re-login
+          if (retryError.response?.status === 401) {
+            clearAuthAndRedirect();
+          }
+          throw retryError;
+        });
       } catch (refreshError) {
         processQueue(refreshError);
         clearAuthAndRedirect();

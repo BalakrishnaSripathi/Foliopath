@@ -10,6 +10,7 @@ import {
   ClipboardList,
   Lock,
   CheckCircle2,
+  ShoppingCart,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import {
@@ -22,6 +23,7 @@ import {
   enrollInCourse,
   getEnrollment,
 } from "../../api/enrollmentService";
+import { addToCart } from "../../api/cartService";
 import { useAuth } from "../../context/AuthContext";
 import Header from "../../components/layout/Header";
 
@@ -46,6 +48,11 @@ export default function CourseDetail() {
   const [expandedModule, setExpandedModule] = useState(null);
   const [enrollment, setEnrollment] = useState(null);
   const [enrolling, setEnrolling] = useState(false);
+  const [addingToCart, setAddingToCart] = useState(false);
+
+  // Paid courses must go through cart -> checkout -> Razorpay payment.
+  // Direct enroll only works for free courses (EnrollmentController).
+  const isPaid = Number(course?.price || 0) > 0;
 
   // Enrollment unlocks the full course content; without it only the
   // first few modules are shown as a free preview.
@@ -104,14 +111,24 @@ export default function CourseDetail() {
     }
   };
 
-  const handleEnroll = async () => {
+  const requireLogin = () => {
     if (!isAuthenticated) {
       navigate("/login");
-      return;
+      return true;
     }
+    return false;
+  };
+
+  const handleEnroll = async () => {
+    if (requireLogin()) return;
     if (!isStudent) return;
     if (isEnrolled) {
       navigate("/my-courses");
+      return;
+    }
+    // Paid courses are unlocked after payment, not by direct enroll
+    if (isPaid) {
+      handleAddToCart();
       return;
     }
     setEnrolling(true);
@@ -129,6 +146,28 @@ export default function CourseDetail() {
       );
     } finally {
       setEnrolling(false);
+    }
+  };
+
+  const handleAddToCart = async () => {
+    if (requireLogin()) return;
+    if (!isStudent || isEnrolled) return;
+    setAddingToCart(true);
+    try {
+      await addToCart(courseId);
+      window.dispatchEvent(new Event("cart:updated"));
+      toast.success("Added to cart!", {
+        iconTheme: { primary: "#00A86B", secondary: "#fff" },
+      });
+      // Show the cart items to the student right away
+      window.dispatchEvent(new Event("cart:open"));
+    } catch (err) {
+      console.error("Failed to add to cart:", err);
+      toast.error(
+        err.response?.data?.message || "Failed to add this course to cart"
+      );
+    } finally {
+      setAddingToCart(false);
     }
   };
 
@@ -153,7 +192,11 @@ export default function CourseDetail() {
       navigate("/login");
       return;
     }
-    toast.error("Enroll in this course to unlock its content");
+    toast.error(
+      isPaid
+        ? "Add this course to your cart and complete checkout to unlock it"
+        : "Enroll in this course to unlock its content"
+    );
   };
 
   if (loading) {
@@ -187,6 +230,10 @@ export default function CourseDetail() {
     ? "Students Only"
     : isEnrolled
     ? "Start Learning"
+    : isPaid
+    ? addingToCart
+      ? "Adding..."
+      : "Add to Cart"
     : enrolling
     ? "Enrolling..."
     : "Enroll Now";
@@ -249,7 +296,7 @@ export default function CourseDetail() {
 
               <button
                 onClick={handleEnroll}
-                disabled={(isAuthenticated && !isStudent) || enrolling}
+                disabled={(isAuthenticated && !isStudent) || enrolling || addingToCart}
                 className="w-full py-3 bg-[#00A86B] hover:bg-[#008f5a] text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {enrollButtonLabel}
@@ -457,16 +504,26 @@ export default function CourseDetail() {
                       {modules.length - unlockedModules > 1 ? "s" : ""} waiting
                     </p>
                     <p className="text-xs text-slate-300 mt-0.5">
-                      Enroll now to unlock the full course content, lessons and
-                      mock tests
+                      {isPaid
+                        ? "Add to cart and complete checkout to unlock the full course"
+                        : "Enroll now to unlock the full course content, lessons and mock tests"}
                     </p>
                   </div>
                   <button
                     onClick={handleEnroll}
-                    disabled={enrolling || (isAuthenticated && !isStudent)}
-                    className="flex-shrink-0 px-6 py-2.5 bg-[#00A86B] hover:bg-[#008f5a] text-white text-sm font-bold rounded-xl shadow-md transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
+                    disabled={
+                      enrolling ||
+                      addingToCart ||
+                      (isAuthenticated && !isStudent)
+                    }
+                    className="flex-shrink-0 px-6 py-2.5 bg-[#00A86B] hover:bg-[#008f5a] text-white text-sm font-bold rounded-xl shadow-md transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
                   >
-                    {enrolling ? "Enrolling..." : "Enroll Now"}
+                    {isPaid && <ShoppingCart className="w-4 h-4" />}
+                    {enrolling || addingToCart
+                      ? "Please wait..."
+                      : isPaid
+                      ? "Add to Cart"
+                      : "Enroll Now"}
                   </button>
                 </div>
               )}

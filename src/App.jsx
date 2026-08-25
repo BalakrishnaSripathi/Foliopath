@@ -18,6 +18,7 @@ import MockTestView from "./pages/student/MockTestView";
 import MockTestResultPage from "./pages/student/MockTestResultPage";
 import StudentDashboard from "./pages/student/StudentDashboard";
 import StudentProfile from "./pages/student/StudentProfile";
+import CartPage from "./pages/student/CartPage";
 
 function App() {
   return (
@@ -95,6 +96,14 @@ function App() {
           />
 
           {/* Student routes */}
+          <Route
+            path="/cart"
+            element={
+              <ProtectedRoute allowedRoles={["STUDENT"]}>
+                <CartPage />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/my-courses"
             element={
