@@ -71,7 +71,7 @@ export default function CartPage() {
         { iconTheme: { primary: "#00A86B", secondary: "#fff" }, duration: 4000 }
       );
       window.dispatchEvent(new Event("cart:updated"));
-      navigate("/my-courses");
+      navigate("/StudentDashboard");
     } catch (err) {
       console.error("Checkout failed:", err);
       toast.error(

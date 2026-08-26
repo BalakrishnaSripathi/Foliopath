@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
-import { GraduationCap, Mail, Search, Eye, KeyRound, Power } from "lucide-react";
+import { GraduationCap, Mail, Search, Eye, KeyRound, Power, BookOpen } from "lucide-react";
 import {
   getAllStudentsReport,
   updateStudentStatus,
 } from "../../api/superAdminService";
 import StudentDetailsModal from "./StudentDetailsModal";
+import EnrollStudentModal from "./EnrollStudentModal";
 
 export default function AllStudentsTable({ isSuperAdmin, onResetPassword }) {
   const [students, setStudents] = useState([]);
@@ -12,6 +13,7 @@ export default function AllStudentsTable({ isSuperAdmin, onResetPassword }) {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [detailsStudent, setDetailsStudent] = useState(null);
+  const [enrollStudent, setEnrollStudent] = useState(null);
 
   useEffect(() => {
     loadStudents();
@@ -160,12 +162,12 @@ export default function AllStudentsTable({ isSuperAdmin, onResetPassword }) {
                       : "-"}
                   </td>
                   <td className="py-3 px-4">
-                    <div className="flex items-center gap-2">
-                      {/* Status / enrolled courses / performance / mock test scores */}
+                    <div className="flex gap-1.5 flex-wrap">
                       <button
                         onClick={() => setDetailsStudent(student)}
-                        className="p-1.5 text-[#00A86B] hover:text-[#008f5a] hover:bg-emerald-50 rounded-lg transition-colors"
                         title="View details, enrolled courses & performance"
+                        className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-150 hover:opacity-80 active:scale-95"
+                        style={{ color: "#00A86B", background: "#00A86B15", border: "1px solid #00A86B30" }}
                       >
                         <Eye className="w-4 h-4" />
                       </button>
@@ -173,21 +175,27 @@ export default function AllStudentsTable({ isSuperAdmin, onResetPassword }) {
                         <>
                           <button
                             onClick={() => onResetPassword?.(student)}
-                            className="p-1.5 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
                             title="Reset password"
+                            className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-150 hover:opacity-80 active:scale-95"
+                            style={{ color: "#f59e0b", background: "#f59e0b15", border: "1px solid #f59e0b30" }}
                           >
                             <KeyRound className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => handleToggleStatus(student)}
-                            className={`p-1.5 rounded-lg transition-colors ${
-                              student.enabled
-                                ? "text-amber-500 hover:text-amber-700 hover:bg-amber-50"
-                                : "text-green-500 hover:text-green-700 hover:bg-green-50"
-                            }`}
                             title={student.enabled ? "Disable" : "Enable"}
+                            className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-150 hover:opacity-80 active:scale-95"
+                            style={{ color: student.enabled ? "#f59e0b" : "#00A86B", background: student.enabled ? "#f59e0b15" : "#00A86B15", border: student.enabled ? "1px solid #f59e0b30" : "1px solid #00A86B30" }}
                           >
                             <Power className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => setEnrollStudent(student)}
+                            title="Enroll in course"
+                            className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-150 hover:opacity-80 active:scale-95"
+                            style={{ color: "#3b82f6", background: "#3b82f615", border: "1px solid #3b82f630" }}
+                          >
+                            <BookOpen className="w-4 h-4" />
                           </button>
                         </>
                       )}
@@ -204,6 +212,14 @@ export default function AllStudentsTable({ isSuperAdmin, onResetPassword }) {
         <StudentDetailsModal
           student={detailsStudent}
           onClose={() => setDetailsStudent(null)}
+        />
+      )}
+
+      {enrollStudent && (
+        <EnrollStudentModal
+          student={enrollStudent}
+          onClose={() => setEnrollStudent(null)}
+          onSuccess={loadStudents}
         />
       )}
     </div>

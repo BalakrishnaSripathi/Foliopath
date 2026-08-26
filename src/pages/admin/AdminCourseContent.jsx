@@ -22,7 +22,6 @@ import {
   updateLesson,
   deleteLesson,
 } from "../../api/courseService";
-import Header from "../../components/layout/Header";
 import RichTextEditor from "../../components/RichTextEditor";
 
 const LESSON_TYPES = ["CONCEPT", "TEXT_ONLY", "CODE_ONLY", "TEXT_AND_CODE"];
@@ -556,16 +555,14 @@ export default function AdminCourseContent() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <Header />
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <button
-          onClick={() => navigate("/admin/dashboard")}
-          className="flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-[#00A86B] mb-6 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back to Dashboard
-        </button>
+    <div>
+      <button
+        onClick={() => navigate("/admin/dashboard", { state: { active: "courses" } })}
+        className="flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-[#00A86B] mb-6 transition-colors"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        Back to Dashboard
+      </button>
 
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
           <div>
@@ -791,6 +788,5 @@ export default function AdminCourseContent() {
           </div>
         )}
       </div>
-    </div>
   );
 }

@@ -201,6 +201,15 @@ export default function Login() {
               )}
             </div>
 
+            <div className="text-right">
+              <Link
+                to="/forgot-password"
+                className="text-xs font-semibold text-[#00A86B] hover:underline transition-colors duration-200"
+              >
+                Forgot Password?
+              </Link>
+            </div>
+
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                 Captcha

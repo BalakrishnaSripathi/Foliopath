@@ -91,6 +91,16 @@ export const resetStudentPasswordByAdmin = (
   });
 };
 
+// ==================== ENROLLMENT (SUPER_ADMIN) ====================
+
+export const adminEnrollStudent = (studentId, courseId) => {
+  return api.post("/api/super-admin/enrollments", { studentId, courseId });
+};
+
+export const getStudentEnrollments = (studentId) => {
+  return api.get(`/api/super-admin/students/${studentId}/enrollments`);
+};
+
 // ==================== STUDENT REPORTS (SUPER_ADMIN + STAFF) ====================
 
 export const getAllStudentsReport = (search) => {

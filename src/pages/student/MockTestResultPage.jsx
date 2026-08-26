@@ -140,7 +140,7 @@ export default function MockTestResultPage() {
         {/* Actions */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
           <button
-            onClick={() => navigate("/my-courses")}
+            onClick={() => navigate("/StudentDashboard")}
             className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-[#00A86B] hover:bg-[#008f5a] text-white text-sm font-bold rounded-xl shadow-md hover:shadow-lg transition-all duration-200"
           >
             <LayoutDashboard className="w-4 h-4" />

@@ -88,7 +88,7 @@ export default function MockTestView() {
           const { data } = await getMyMockTestAttempt(mockTestId);
           goForResult(data);
         } catch {
-          navigate("/my-courses");
+          navigate("/StudentDashboard");
         }
       } else {
         alert(err.message || "Failed to submit mock test");

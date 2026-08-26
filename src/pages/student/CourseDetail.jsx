@@ -123,7 +123,7 @@ export default function CourseDetail() {
     if (requireLogin()) return;
     if (!isStudent) return;
     if (isEnrolled) {
-      navigate("/my-courses");
+      navigate("/StudentDashboard");
       return;
     }
     // Paid courses are unlocked after payment, not by direct enroll

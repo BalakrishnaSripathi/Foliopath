@@ -274,7 +274,7 @@ export default function StudentProfile() {
                 {saving ? "Saving..." : "Save Changes"}
               </button>
               <button
-                onClick={() => navigate("/my-courses")}
+                onClick={() => navigate("/StudentDashboard")}
                 className="text-sm font-semibold text-slate-500 hover:text-slate-700 px-3 py-2.5"
               >
                 Back to Dashboard

@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "react-router-dom";
-import { Search, Menu, X, LogOut, User, LayoutDashboard, BookOpen, ShoppingCart } from "lucide-react";
+import { Search, Menu, X, LogOut, User, LayoutDashboard, BookOpen, ShoppingCart, ChevronDown } from "lucide-react";
 import Logo from "../common/Logo";
 import { useAuth } from "../../context/AuthContext";
 import ContactUsMain from "../contact/ContactUsMain";
@@ -22,7 +22,9 @@ export default function Header() {
   const [contactOpen, setContactOpen] = useState(false);
   const [cartCount, setCartCount] = useState(0);
   const [cartOpen, setCartOpen] = useState(false);
-  const { isAuthenticated, role, logout } = useAuth();
+  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
+  const { isAuthenticated, role, logout, user } = useAuth();
 
   const refreshCartCount = useCallback(() => {
     if (!isAuthenticated || role !== "STUDENT") return;
@@ -56,7 +58,20 @@ export default function Header() {
   const handleLogout = () => {
     logout();
     setMobileMenuOpen(false);
+    setProfileDropdownOpen(false);
   };
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setProfileDropdownOpen(false);
+      }
+    };
+    if (profileDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [profileDropdownOpen]);
 
   return (
     <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-100 shadow-sm">
@@ -157,47 +172,58 @@ export default function Header() {
                       </span>
                     )}
                   </button>
-                  <Link
-                    to="/my-courses"
-                    data-aos="fade-down"
-                    data-aos-duration="400"
-                    data-aos-delay="320"
-                    className="flex items-center gap-2 text-sm font-semibold text-[#0B2545] hover:text-[#00A86B] px-3 py-2 transition-colors duration-200"
-                  >
-                    <BookOpen className="w-4 h-4" />
-                    My Courses
-                  </Link>
-                  <Link
-                    to="/my-profile"
-                    data-aos="fade-down"
-                    data-aos-duration="400"
-                    data-aos-delay="330"
-                    className="flex items-center gap-2 text-sm font-semibold text-[#0B2545] hover:text-[#00A86B] px-3 py-2 transition-colors duration-200"
-                  >
-                    <User className="w-4 h-4" />
-                    Profile
-                  </Link>
+                  <div className="relative" ref={dropdownRef}>
+                    <button
+                      type="button"
+                      onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
+                      data-aos="fade-down"
+                      data-aos-duration="400"
+                      data-aos-delay="320"
+                      className="flex items-center gap-1.5 text-sm font-semibold text-[#0B2545] hover:text-[#00A86B] px-3 py-2 transition-colors duration-200"
+                    >
+                      <User className="w-4 h-4" />
+                      {user?.firstName || "Student"}
+                      <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${profileDropdownOpen ? "rotate-180" : ""}`} />
+                    </button>
+                    {profileDropdownOpen && (
+                      <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-slate-100 py-2 z-50">
+                        <Link
+                          to="/StudentDashboard"
+                          onClick={() => setProfileDropdownOpen(false)}
+                          className="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-[#00A86B] transition-colors duration-150"
+                        >
+                          <LayoutDashboard className="w-4 h-4" />
+                          Dashboard
+                        </Link>
+                        <Link
+                          to="/my-courses"
+                          onClick={() => setProfileDropdownOpen(false)}
+                          className="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-[#00A86B] transition-colors duration-150"
+                        >
+                          <BookOpen className="w-4 h-4" />
+                          My Courses
+                        </Link>
+                        <Link
+                          to="/my-profile"
+                          onClick={() => setProfileDropdownOpen(false)}
+                          className="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-[#00A86B] transition-colors duration-150"
+                        >
+                          <User className="w-4 h-4" />
+                          Profile
+                        </Link>
+                        <div className="my-1 border-t border-slate-100" />
+                        <button
+                          onClick={handleLogout}
+                          className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-red-500 hover:bg-red-50 transition-colors duration-150"
+                        >
+                          <LogOut className="w-4 h-4" />
+                          Log Out
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </>
               )}
-              <div
-                data-aos="fade-down"
-                data-aos-duration="400"
-                data-aos-delay="350"
-                className="flex items-center gap-2 text-sm font-semibold text-[#0B2545]"
-              >
-                <User className="w-4 h-4" />
-                <span className="capitalize">{role?.toLowerCase()}</span>
-              </div>
-              <button
-                onClick={handleLogout}
-                data-aos="fade-down"
-                data-aos-duration="400"
-                data-aos-delay="400"
-                className="flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-red-500 px-4 py-2 transition-colors duration-200"
-              >
-                <LogOut className="w-4 h-4" />
-                Log Out
-              </button>
             </>
           ) : (
             <>

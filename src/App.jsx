@@ -5,7 +5,10 @@ import Register from "./pages/Register";
 import Login from "./pages/Login";
 import VerifyOtp from "./pages/VerifyOtp";
 import SetPassword from "./pages/SetPassword";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import ProtectedRoute from "./components/ProtectedRoute";
+import AdminShell from "./components/admin/AdminShell";
 import SuperAdminDashboard from "./pages/superadmin/SuperAdminDashboard";
 import StaffDashboard from "./pages/staff/StaffDashboard";
 import AdminCourseForm from "./pages/admin/AdminCourseForm";
@@ -13,9 +16,7 @@ import AdminCourseContent from "./pages/admin/AdminCourseContent";
 import AdminMockTest from "./pages/admin/AdminMockTest";
 import CourseCatalog from "./pages/student/CourseCatalog";
 import CourseDetail from "./pages/student/CourseDetail";
-import LessonView from "./pages/student/LessonView";
-import MockTestView from "./pages/student/MockTestView";
-import MockTestResultPage from "./pages/student/MockTestResultPage";
+import StudentShell from "./pages/student/StudentShell";
 import StudentDashboard from "./pages/student/StudentDashboard";
 import StudentProfile from "./pages/student/StudentProfile";
 import CartPage from "./pages/student/CartPage";
@@ -29,31 +30,39 @@ function App() {
           <Route path="/register" element={<Register />} />
           <Route path="/verify-otp" element={<VerifyOtp />} />
           <Route path="/set-password" element={<SetPassword />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/login" element={<Login />} />
 
           {/* Public course browsing */}
           <Route path="/courses" element={<CourseCatalog />} />
           <Route path="/courses/:courseId" element={<CourseDetail />} />
 
-          {/* Combined dashboard (users + staff + courses) */}
+          {/* Super Admin / Admin — nested under AdminShell layout */}
           <Route
             path="/super-admin/dashboard"
             element={
               <ProtectedRoute allowedRoles={["SUPER_ADMIN"]}>
-                <SuperAdminDashboard />
+                <AdminShell />
               </ProtectedRoute>
             }
-          />
+          >
+            <Route index element={<SuperAdminDashboard />} />
+            <Route path="courses/:courseId/content" element={<AdminCourseContent />} />
+          </Route>
           <Route
             path="/admin/dashboard"
             element={
               <ProtectedRoute allowedRoles={["SUPER_ADMIN", "STAFF"]}>
-                <SuperAdminDashboard />
+                <AdminShell />
               </ProtectedRoute>
             }
-          />
+          >
+            <Route index element={<SuperAdminDashboard />} />
+            <Route path="courses/:courseId/content" element={<AdminCourseContent />} />
+          </Route>
 
-          {/* Staff dashboard (personal overview) */}
+          {/* Staff */}
           <Route
             path="/staff/dashboard"
             element={
@@ -79,14 +88,6 @@ function App() {
             }
           />
           <Route
-            path="/admin/courses/:courseId/content"
-            element={
-              <ProtectedRoute allowedRoles={["SUPER_ADMIN", "STAFF"]}>
-                <AdminCourseContent />
-              </ProtectedRoute>
-            }
-          />
-          <Route
             path="/admin/courses/:courseId/modules/:moduleId/mock-tests"
             element={
               <ProtectedRoute allowedRoles={["SUPER_ADMIN", "STAFF"]}>
@@ -95,7 +96,41 @@ function App() {
             }
           />
 
-          {/* Student routes */}
+          {/* Student shell — sidebar + topbar for all student pages */}
+          <Route
+            path="/StudentDashboard"
+            element={
+              <ProtectedRoute allowedRoles={["STUDENT"]}>
+                <StudentShell />
+              </ProtectedRoute>
+            }
+          >
+            <Route index element={<StudentDashboard />} />
+            <Route path="my-courses" element={<StudentDashboard />} />
+            <Route path="lessons/:moduleId/:lessonId" element={<StudentDashboard />} />
+            <Route path="mock-tests/:mockTestId" element={<StudentDashboard />} />
+            <Route path="mock-tests/:mockTestId/result" element={<StudentDashboard />} />
+            <Route path="interview-kits" element={<StudentDashboard />} />
+            <Route path="progress" element={<StudentDashboard />} />
+            <Route path="certificates" element={<StudentDashboard />} />
+            <Route path="payments" element={<StudentDashboard />} />
+            <Route path="notifications" element={<StudentDashboard />} />
+            <Route path="settings" element={<StudentDashboard />} />
+          </Route>
+
+          {/* Legacy /my-courses redirect */}
+          <Route
+            path="/my-courses"
+            element={
+              <ProtectedRoute allowedRoles={["STUDENT"]}>
+                <StudentShell />
+              </ProtectedRoute>
+            }
+          >
+            <Route index element={<StudentDashboard />} />
+          </Route>
+
+          {/* Cart & Profile */}
           <Route
             path="/cart"
             element={
@@ -105,38 +140,10 @@ function App() {
             }
           />
           <Route
-            path="/my-courses"
-            element={
-              <ProtectedRoute allowedRoles={["STUDENT"]}>
-                <StudentDashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
             path="/my-profile"
             element={
               <ProtectedRoute allowedRoles={["STUDENT"]}>
                 <StudentProfile />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/lessons/:moduleId/:lessonId"
-            element={<LessonView />}
-          />
-          <Route
-            path="/mock-tests/:mockTestId"
-            element={
-              <ProtectedRoute allowedRoles={["STUDENT"]}>
-                <MockTestView />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/mock-tests/:mockTestId/result"
-            element={
-              <ProtectedRoute allowedRoles={["STUDENT"]}>
-                <MockTestResultPage />
               </ProtectedRoute>
             }
           />

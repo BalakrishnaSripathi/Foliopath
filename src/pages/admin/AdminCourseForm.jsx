@@ -66,11 +66,12 @@ export default function AdminCourseForm() {
     try {
       if (isEdit) {
         await updateCourse(courseId, form);
-        navigate("/admin/dashboard");
+        navigate("/admin/dashboard", { state: { active: "courses" } });
       } else {
         const { data } = await createCourse(form);
-        navigate(`/admin/courses/${data.id}/content`, {
+        navigate(`/admin/dashboard/courses/${data.id}/content`, {
           state: {
+            active: "courses",
             message: "Course created! Now add modules and lessons.",
           },
         });
@@ -95,7 +96,7 @@ export default function AdminCourseForm() {
       <Header />
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <button
-          onClick={() => navigate("/admin/dashboard")}
+          onClick={() => navigate("/admin/dashboard", { state: { active: "courses" } })}
           className="flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-[#00A86B] mb-6 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -237,7 +238,7 @@ export default function AdminCourseForm() {
             </button>
             <button
               type="button"
-              onClick={() => navigate("/admin/dashboard")}
+              onClick={() => navigate("/admin/dashboard", { state: { active: "courses" } })}
               className="px-6 py-3 text-sm font-semibold text-slate-600 hover:text-[#0B2545] transition-colors"
             >
               Cancel
