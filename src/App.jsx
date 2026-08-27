@@ -1,5 +1,5 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { AuthProvider } from "./context/AuthContext";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider, useAuth } from "./context/AuthContext";
 import FoliopathLandingPage from "./components/FoliopathLandingPage";
 import Register from "./pages/Register";
 import Login from "./pages/Login";
@@ -18,15 +18,32 @@ import CourseCatalog from "./pages/student/CourseCatalog";
 import CourseDetail from "./pages/student/CourseDetail";
 import StudentShell from "./pages/student/StudentShell";
 import StudentDashboard from "./pages/student/StudentDashboard";
-import StudentProfile from "./pages/student/StudentProfile";
 import CartPage from "./pages/student/CartPage";
+
+function HomeRedirect() {
+  const { isAuthenticated, role, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#00A86B]" />
+      </div>
+    );
+  }
+
+  if (isAuthenticated && role === "STUDENT") {
+    return <Navigate to="/StudentDashboard" replace />;
+  }
+
+  return <FoliopathLandingPage />;
+}
 
 function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<FoliopathLandingPage />} />
+          <Route path="/" element={<HomeRedirect />} />
           <Route path="/register" element={<Register />} />
           <Route path="/verify-otp" element={<VerifyOtp />} />
           <Route path="/set-password" element={<SetPassword />} />
@@ -49,6 +66,7 @@ function App() {
           >
             <Route index element={<SuperAdminDashboard />} />
             <Route path="courses/:courseId/content" element={<AdminCourseContent />} />
+            <Route path="courses/:courseId/modules/:moduleId/mock-tests" element={<AdminMockTest />} />
           </Route>
           <Route
             path="/admin/dashboard"
@@ -60,6 +78,7 @@ function App() {
           >
             <Route index element={<SuperAdminDashboard />} />
             <Route path="courses/:courseId/content" element={<AdminCourseContent />} />
+            <Route path="courses/:courseId/modules/:moduleId/mock-tests" element={<AdminMockTest />} />
           </Route>
 
           {/* Staff */}
@@ -139,11 +158,12 @@ function App() {
               </ProtectedRoute>
             }
           />
+          {/* Profile is now part of Settings tab */}
           <Route
             path="/my-profile"
             element={
               <ProtectedRoute allowedRoles={["STUDENT"]}>
-                <StudentProfile />
+                <Navigate to="/StudentDashboard/settings" replace />
               </ProtectedRoute>
             }
           />

@@ -7,15 +7,7 @@ import ContactUsMain from "../contact/ContactUsMain";
 import CartDrawer from "../cart/CartDrawer";
 import { getCart } from "../../api/cartService";
 
-const contactLink = { label: "Contact", href: "#contact" };
-
-const navLinks = [
-  { label: "Home", href: "/" },
-  { label: "Courses", href: "/courses" },
-  { label: "About Us", href: "#about" },
-  // { label: "Instructors", href: "#instructors" },
-  contactLink,
-];
+const navLinks = [];
 
 export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);

@@ -101,6 +101,16 @@ export const getStudentEnrollments = (studentId) => {
   return api.get(`/api/super-admin/students/${studentId}/enrollments`);
 };
 
+// ==================== KIT ENROLLMENT (SUPER_ADMIN) ====================
+
+export const adminEnrollStudentInKit = (studentId, kitId) => {
+  return api.post("/api/super-admin/kit-enrollments", { studentId, kitId });
+};
+
+export const getStudentKitEnrollments = (studentId) => {
+  return api.get(`/api/super-admin/students/${studentId}/kit-enrollments`);
+};
+
 // ==================== STUDENT REPORTS (SUPER_ADMIN + STAFF) ====================
 
 export const getAllStudentsReport = (search) => {

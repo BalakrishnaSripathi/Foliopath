@@ -17,6 +17,7 @@ import {
   Eye,
   EyeOff,
   RefreshCw,
+  Briefcase,
 } from "lucide-react";
 import {
   BarChart,
@@ -50,6 +51,14 @@ import { useAuth } from "../../context/AuthContext";
 import AllStudentsTable from "../../components/admin/AllStudentsTable";
 import ContactUsTable from "../../components/contact/ContactUsTable";
 import CourseFormModal from "../../components/admin/CourseFormModal";
+import KitFormModal from "../../components/admin/KitFormModal";
+import KitQuestionsModal from "../../components/admin/KitQuestionsModal";
+import {
+  getAllKits,
+  publishKit,
+  unpublishKit,
+  deleteKit,
+} from "../../api/interviewKitService";
 
 // ─── Chart Data ───────────────────────────────────────────────────────────────
 
@@ -722,48 +731,71 @@ function ReportsSection() {
 
 // ─── Interview Kits Section ───────────────────────────────────────────────────
 
-function InterviewKitsSection() {
+function InterviewKitsSection({ kits, onAdd, onEdit, onPublish, onUnpublish, onDelete, onManageQuestions }) {
   return (
     <div>
-      <SectionHeader title="Interview Kits" count={INTERVIEW_KITS.length} action="Create Kit" />
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-        {INTERVIEW_KITS.map((kit) => (
-          <div
-            key={kit.id}
-            className="rounded-2xl p-5 flex flex-col gap-4 transition-transform duration-200 hover:-translate-y-0.5 bg-white border border-slate-100 shadow-sm"
-          >
-            <div className="flex items-start justify-between">
-              <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center font-extrabold text-lg flex-shrink-0"
-                style={{ background: kit.color + "15", color: kit.color }}
-              >
-                📋
+      <SectionHeader title="Interview Kits" count={kits.length} action="Create Kit" onAction={onAdd} />
+      {kits.length === 0 ? (
+        <div className="text-center py-16 bg-white rounded-2xl border border-slate-100 shadow-sm">
+          <Briefcase className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+          <p className="text-slate-500 mb-4">No interview kits yet</p>
+          <button onClick={onAdd} className="inline-flex items-center gap-2 text-[#00A86B] font-semibold hover:underline">
+            <Plus className="w-4 h-4" /> Create your first kit
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {kits.map((kit) => (
+            <div
+              key={kit.id}
+              className="rounded-2xl p-5 flex flex-col gap-4 transition-transform duration-200 hover:-translate-y-0.5 bg-white border border-slate-100 shadow-sm"
+            >
+              <div className="flex items-start justify-between">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-amber-50 flex-shrink-0">
+                  <Briefcase className="w-5 h-5 text-amber-500" />
+                </div>
+                <StatusBadge status={kit.status || "DRAFT"} />
               </div>
-              {kit.tag && (
-                <span
-                  className="text-xs font-mono font-bold px-2 py-0.5 rounded-full"
-                  style={{ background: kit.color + "15", color: kit.color }}
-                >
-                  {kit.tag}
+              <div>
+                <div className="font-bold text-[#0B2545] text-sm leading-snug">{kit.name}</div>
+                <div className="text-xs font-mono text-slate-400 mt-1">
+                  {kit.questionCount || 0} questions · {kit.level}
+                </div>
+                {kit.enrollmentCount > 0 && (
+                  <div className="text-xs text-slate-400 mt-0.5">
+                    {kit.enrollmentCount} enrollment{kit.enrollmentCount !== 1 ? "s" : ""}
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center justify-between mt-auto pt-3 border-t border-slate-100">
+                <span className="text-xs font-mono text-slate-400">
+                  {kit.price > 0 ? `₹${kit.price}` : "Free"}
                 </span>
-              )}
-            </div>
-            <div>
-              <div className="font-bold text-[#0B2545] text-sm leading-snug">{kit.title}</div>
-              <div className="text-xs font-mono text-slate-400 mt-1">
-                {kit.topics} topics · {kit.level}
+                <div className="flex gap-1.5">
+                  <button onClick={() => onManageQuestions(kit)} title="Manage Questions" className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-150 hover:opacity-80 active:scale-95" style={{ color: "#60a5fa", background: "#60a5fa15", border: "1px solid #60a5fa30" }}>
+                    <FolderOpen className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => onEdit(kit)} title="Edit" className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-150 hover:opacity-80 active:scale-95" style={{ color: "#0B2545", background: "#0B254515", border: "1px solid #0B254530" }}>
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                  {kit.status !== "PUBLISHED" ? (
+                    <button onClick={() => onPublish(kit.id)} title="Publish" className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-150 hover:opacity-80 active:scale-95" style={{ color: "#00A86B", background: "#00A86B15", border: "1px solid #00A86B30" }}>
+                      <Eye className="w-4 h-4" />
+                    </button>
+                  ) : (
+                    <button onClick={() => onUnpublish(kit.id)} title="Unpublish" className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-150 hover:opacity-80 active:scale-95" style={{ color: "#f59e0b", background: "#f59e0b15", border: "1px solid #f59e0b30" }}>
+                      <EyeOff className="w-4 h-4" />
+                    </button>
+                  )}
+                  <button onClick={() => onDelete(kit.id)} title="Delete" className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-150 hover:opacity-80 active:scale-95" style={{ color: "#ef4444", background: "#ef444415", border: "1px solid #ef444430" }}>
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             </div>
-            <div className="flex items-center justify-between mt-auto pt-3 border-t border-slate-100">
-              <span className="text-xs font-mono text-slate-400">↓ {kit.downloads} downloads</span>
-              <div className="flex gap-1.5">
-                <ActionBtn label="Edit" color="#0B2545" />
-                <ActionBtn label="View" color={kit.color} />
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -1018,10 +1050,13 @@ export default function CombinedDashboard() {
   const [stats, setStats] = useState(null);
   const [staff, setStaff] = useState([]);
   const [courses, setCourses] = useState([]);
+  const [kits, setKits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
   const [resetModal, setResetModal] = useState(null);
   const [courseFormModal, setCourseFormModal] = useState(null);
+  const [kitFormModal, setKitFormModal] = useState(null);
+  const [kitQuestionsModal, setKitQuestionsModal] = useState(null);
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState("");
 
@@ -1038,6 +1073,13 @@ export default function CombinedDashboard() {
     } catch (err) {
       console.error("Failed to load courses:", err);
       errors.push("Failed to load courses");
+    }
+    try {
+      const { data } = await getAllKits();
+      setKits(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Failed to load kits:", err);
+      errors.push("Failed to load interview kits");
     }
     if (isSuperAdmin) {
       try {
@@ -1125,6 +1167,38 @@ export default function CombinedDashboard() {
     setResetModal(null);
   };
 
+  // ── Kit handlers ──
+
+  const handlePublishKit = async (kitId) => {
+    try {
+      await publishKit(kitId);
+      const { data } = await getAllKits();
+      setKits(data);
+    } catch (err) {
+      console.error("Failed to publish kit:", err);
+    }
+  };
+
+  const handleUnpublishKit = async (kitId) => {
+    try {
+      await unpublishKit(kitId);
+      const { data } = await getAllKits();
+      setKits(data);
+    } catch (err) {
+      console.error("Failed to unpublish kit:", err);
+    }
+  };
+
+  const handleDeleteKit = async (kitId) => {
+    if (!confirm("Are you sure you want to delete this interview kit?")) return;
+    try {
+      await deleteKit(kitId);
+      setKits((prev) => prev.filter((k) => k.id !== kitId));
+    } catch (err) {
+      console.error("Failed to delete kit:", err);
+    }
+  };
+
   // ── Course handlers ──
 
   const handlePublish = async (courseId) => {
@@ -1202,7 +1276,17 @@ export default function CombinedDashboard() {
       case "reports":
         return <ReportsSection />;
       case "interview":
-        return <InterviewKitsSection />;
+        return (
+          <InterviewKitsSection
+            kits={kits}
+            onAdd={() => setKitFormModal({ kit: null })}
+            onEdit={(k) => setKitFormModal({ kit: k })}
+            onPublish={handlePublishKit}
+            onUnpublish={handleUnpublishKit}
+            onDelete={handleDeleteKit}
+            onManageQuestions={(k) => setKitQuestionsModal(k)}
+          />
+        );
       case "notifications":
         return <NotificationsSection contactCount={0} />;
       default:
@@ -1263,6 +1347,21 @@ export default function CombinedDashboard() {
           courseId={courseFormModal.courseId}
           onClose={() => setCourseFormModal(null)}
           onSaved={() => loadData()}
+        />
+      )}
+
+      {kitFormModal && (
+        <KitFormModal
+          kit={kitFormModal.kit}
+          onClose={() => setKitFormModal(null)}
+          onSaved={() => { setKitFormModal(null); loadData(); }}
+        />
+      )}
+
+      {kitQuestionsModal && (
+        <KitQuestionsModal
+          kit={kitQuestionsModal}
+          onClose={() => { setKitQuestionsModal(null); loadData(); }}
         />
       )}
     </>

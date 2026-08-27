@@ -1,0 +1,557 @@
+import { useState, useEffect, useRef, useCallback } from "react";
+import {
+  X,
+  Plus,
+  Pencil,
+  Trash2,
+  Code,
+  FileText,
+  Eye,
+  EyeOff,
+  Braces,
+  Bold,
+} from "lucide-react";
+import {
+  getKitById,
+  addKitQuestion,
+  updateKitQuestion,
+  deleteKitQuestion,
+} from "../../api/interviewKitService";
+import RenderAnswer from "./RenderAnswer";
+
+const FENCE = "\u0060\u0060\u0060";
+
+// ─── Rich Answer Editor ─────────────────────────────────────────────
+
+function RichAnswerEditor({ value, onChange, error }) {
+  const [tab, setTab] = useState("write");
+  const textareaRef = useRef(null);
+
+  const insertAtCursor = useCallback(
+    (before, after = "") => {
+      const ta = textareaRef.current;
+      if (!ta) return;
+      const start = ta.selectionStart;
+      const end = ta.selectionEnd;
+      const selected = value.slice(start, end);
+      const replacement = before + selected + after;
+      const next = value.slice(0, start) + replacement + value.slice(end);
+      onChange(next);
+      setTimeout(() => {
+        ta.focus();
+        const pos = start + before.length + selected.length;
+        ta.setSelectionRange(pos, pos);
+      }, 0);
+    },
+    [value, onChange]
+  );
+
+  const insertCodeBlock = () => {
+    const ta = textareaRef.current;
+    const start = ta?.selectionStart ?? value.length;
+    const before = value.slice(0, start);
+    const needsNewline = before.length > 0 && !before.endsWith("\n\n");
+    const prefix = needsNewline ? (before.endsWith("\n") ? "\n" : "\n\n") : "";
+    insertAtCursor(prefix + FENCE + "\n", "\n" + FENCE);
+  };
+
+  const insertInlineCode = () => {
+    insertAtCursor("`", "`");
+  };
+
+  const insertBold = () => {
+    insertAtCursor("**", "**");
+  };
+
+  const inputCls =
+    "w-full px-3 py-2 text-sm bg-slate-50 rounded-xl border border-slate-200 focus:border-[#00A86B] focus:bg-white focus:outline-none transition-all duration-200";
+
+  return (
+    <div className={`rounded-xl border overflow-hidden ${error ? "border-red-400" : "border-slate-200"}`}>
+      {/* Tab bar + toolbar */}
+      <div className="flex items-center justify-between bg-slate-50 border-b border-slate-200 px-2 py-1.5">
+        <div className="flex gap-1">
+          <button
+            onClick={() => setTab("write")}
+            className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors ${
+              tab === "write"
+                ? "bg-white text-[#00A86B] shadow-sm"
+                : "text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            Write
+          </button>
+          <button
+            onClick={() => setTab("preview")}
+            className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors ${
+              tab === "preview"
+                ? "bg-white text-[#00A86B] shadow-sm"
+                : "text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            Preview
+          </button>
+        </div>
+        {tab === "write" && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={insertBold}
+              title="Bold"
+              className="text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              <Bold className="w-4 h-4" />
+            </button>
+            <div className="w-px h-4 bg-slate-200" />
+            <button
+              onClick={insertInlineCode}
+              title="Inline code"
+              className="text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              <Code className="w-4 h-4" />
+            </button>
+            <div className="w-px h-4 bg-slate-200" />
+            <button
+              onClick={insertCodeBlock}
+              title="Insert code block"
+              className="text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              <Braces className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Content */}
+      {tab === "write" ? (
+        <textarea
+          ref={textareaRef}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className={`w-full px-3 py-2.5 text-sm bg-white resize-none focus:outline-none min-h-[100px] font-mono leading-relaxed ${error ? "border-red-400" : ""}`}
+          rows={5}
+          placeholder={"Type your answer here...\n\nUse the { } button to insert a code block.\nUse the ` button for inline code."}
+        />
+      ) : (
+        <div className="px-3 py-3 bg-white min-h-[100px]">
+          {value ? (
+            <RenderAnswer content={value} />
+          ) : (
+            <p className="text-sm text-slate-400 italic">Nothing to preview</p>
+          )}
+        </div>
+      )}
+
+      {error && <p className="text-xs text-red-500 px-3 pb-2">{error}</p>}
+
+      {/* Hint */}
+      <div className="bg-slate-50 border-t border-slate-100 px-3 py-1.5">
+        <p className="text-[10px] text-slate-400">
+          Tip: Select text and click <Bold className="w-2.5 h-2.5 inline" /> for bold, <Code className="w-2.5 h-2.5 inline" /> for inline code, or <Braces className="w-2.5 h-2.5 inline" /> for a code block.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Modal ─────────────────────────────────────────────────────
+
+export default function KitQuestionsModal({ kit, onClose }) {
+  const [kitData, setKitData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [editingQuestion, setEditingQuestion] = useState(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [expandedQuestion, setExpandedQuestion] = useState(null);
+  const [showAnswers, setShowAnswers] = useState({});
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    loadKit();
+  }, []);
+
+  const loadKit = async () => {
+    setLoading(true);
+    try {
+      const { data } = await getKitById(kit.id);
+      setKitData(data);
+    } catch (err) {
+      console.error("Failed to load kit:", err);
+      setError("Failed to load kit details");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddQuestion = async (form) => {
+    try {
+      await addKitQuestion(kit.id, form);
+      setShowAddForm(false);
+      loadKit();
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  const handleUpdateQuestion = async (questionId, form) => {
+    try {
+      await updateKitQuestion(kit.id, questionId, form);
+      setEditingQuestion(null);
+      loadKit();
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  const handleDeleteQuestion = async (questionId) => {
+    if (!confirm("Delete this question?")) return;
+    try {
+      await deleteKitQuestion(kit.id, questionId);
+      loadKit();
+    } catch (err) {
+      console.error("Failed to delete question:", err);
+    }
+  };
+
+  const questions = kitData?.questions || [];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between p-5 border-b border-slate-100 shrink-0">
+          <div>
+            <h2 className="text-lg font-bold text-[#0B2545]">{kit.name}</h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {questions.length} question{questions.length !== 1 ? "s" : ""}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-5">
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
+              {error}
+            </div>
+          )}
+
+          {loading ? (
+            <div className="py-12 flex justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#00A86B]" />
+            </div>
+          ) : (
+            <>
+              {/* Add Question Button */}
+              <button
+                onClick={() => {
+                  setShowAddForm(!showAddForm);
+                  setEditingQuestion(null);
+                }}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-[#00A86B] hover:bg-[#008f5a] text-white shadow-md transition-all duration-150 active:scale-95 mb-4"
+              >
+                <Plus className="w-4 h-4" /> Add Question
+              </button>
+
+              {/* Add/Edit Form */}
+              {(showAddForm || editingQuestion) && (
+                <QuestionForm
+                  initial={editingQuestion}
+                  isEdit={!!editingQuestion}
+                  onSave={
+                    editingQuestion
+                      ? (form) => handleUpdateQuestion(editingQuestion.id, form)
+                      : handleAddQuestion
+                  }
+                  onCancel={() => {
+                    setShowAddForm(false);
+                    setEditingQuestion(null);
+                  }}
+                />
+              )}
+
+              {/* Questions List */}
+              {questions.length === 0 ? (
+                <div className="text-center py-12 text-slate-400">
+                  <FileText className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+                  <p>No questions yet. Add your first question above.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {questions.map((q, idx) => (
+                    <div key={q.id} className="border border-slate-100 rounded-xl overflow-hidden">
+                      <div className="flex items-center gap-3 p-4 hover:bg-slate-50 transition-colors">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          {q.questionType === "CODE" ? (
+                            <Code className="w-4 h-4 text-blue-500 shrink-0" />
+                          ) : (
+                            <FileText className="w-4 h-4 text-green-500 shrink-0" />
+                          )}
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-[#0B2545] truncate">
+                              Q{idx + 1}. {q.question}
+                            </p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span
+                                className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                                  q.questionType === "CODE"
+                                    ? "bg-blue-50 text-blue-600"
+                                    : "bg-green-50 text-green-600"
+                                }`}
+                              >
+                                {q.questionType}
+                              </span>
+                              {q.codeLanguage && (
+                                <span className="text-[10px] font-mono text-slate-400">
+                                  {q.codeLanguage}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex gap-1 shrink-0">
+                          <button
+                            onClick={() =>
+                              setShowAnswers((prev) => ({
+                                ...prev,
+                                [q.id]: !prev[q.id],
+                              }))
+                            }
+                            title={showAnswers[q.id] ? "Hide answer" : "Show answer"}
+                            className="w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-150 hover:opacity-80"
+                            style={{
+                              color: showAnswers[q.id] ? "#00A86B" : "#94a3b8",
+                              background: showAnswers[q.id] ? "#00A86B15" : "#f1f5f9",
+                            }}
+                          >
+                            {showAnswers[q.id] ? (
+                              <Eye className="w-3.5 h-3.5" />
+                            ) : (
+                              <EyeOff className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                          <button
+                            onClick={() => {
+                              setEditingQuestion(q);
+                              setShowAddForm(false);
+                            }}
+                            title="Edit"
+                            className="w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-150 hover:opacity-80"
+                            style={{ color: "#0B2545", background: "#0B254515" }}
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteQuestion(q.id)}
+                            title="Delete"
+                            className="w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-150 hover:opacity-80"
+                            style={{ color: "#ef4444", background: "#ef444415" }}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Expanded: code snippet + answer */}
+                      {(q.codeSnippet || showAnswers[q.id]) && (
+                        <div className="border-t border-slate-100 bg-slate-50/50 p-4 space-y-3">
+                          {q.codeSnippet && (
+                            <div>
+                              <p className="text-xs font-semibold text-slate-500 mb-1">
+                                Code Snippet:
+                              </p>
+                              <pre className="text-xs font-mono bg-[#0B2545] text-green-400 rounded-xl p-3 overflow-x-auto whitespace-pre-wrap">
+                                {q.codeSnippet}
+                              </pre>
+                            </div>
+                          )}
+                          {showAnswers[q.id] && (
+                            <div>
+                              <p className="text-xs font-semibold text-slate-500 mb-1">
+                                Answer:
+                              </p>
+                              <div className="bg-white rounded-xl p-3 border border-slate-100">
+                                <RenderAnswer content={q.answer} />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end p-5 border-t border-slate-100 shrink-0">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-semibold text-slate-500 hover:text-slate-700 transition-colors"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Question Form ──────────────────────────────────────────────────
+
+function QuestionForm({ initial, isEdit, onSave, onCancel }) {
+  const [form, setForm] = useState({
+    questionType: initial?.questionType || "TEXT",
+    codeLanguage: initial?.codeLanguage || "",
+    question: initial?.question || "",
+    codeSnippet: initial?.codeSnippet || "",
+    answer: initial?.answer || "",
+    displayOrder: initial?.displayOrder || 0,
+  });
+  const [errors, setErrors] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const set = (field) => (e) =>
+    setForm((prev) => ({ ...prev, [field]: e.target.value }));
+
+  const validate = () => {
+    const next = {};
+    if (!form.question.trim()) next.question = "Question is required";
+    if (!form.answer.trim()) next.answer = "Answer is required";
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  };
+
+  const handleSubmit = async () => {
+    if (!validate()) return;
+    setSaving(true);
+    setError("");
+    try {
+      await onSave(form);
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to save question");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const inputCls =
+    "w-full px-3 py-2 text-sm bg-slate-50 rounded-xl border border-slate-200 focus:border-[#00A86B] focus:bg-white focus:outline-none transition-all duration-200";
+
+  return (
+    <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-bold text-[#0B2545]">
+          {isEdit ? "Edit Question" : "New Question"}
+        </h3>
+        <button
+          onClick={onCancel}
+          className="text-xs text-slate-400 hover:text-slate-600"
+        >
+          Cancel
+        </button>
+      </div>
+
+      {error && (
+        <div className="p-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-600">
+          {error}
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">
+            Question Type *
+          </label>
+          <select
+            value={form.questionType}
+            onChange={set("questionType")}
+            className={inputCls}
+          >
+            <option value="TEXT">Text</option>
+            <option value="CODE">Code</option>
+          </select>
+        </div>
+        {form.questionType === "CODE" && (
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">
+              Code Language
+            </label>
+            <input
+              type="text"
+              value={form.codeLanguage}
+              onChange={set("codeLanguage")}
+              className={inputCls}
+              placeholder="e.g. Java, Python, JavaScript"
+            />
+          </div>
+        )}
+      </div>
+
+      <div>
+        <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">
+          Question *
+        </label>
+        <textarea
+          value={form.question}
+          onChange={set("question")}
+          className={`${inputCls} resize-none ${errors.question ? "border-red-400" : ""}`}
+          rows={2}
+          placeholder="Enter the interview question..."
+        />
+        {errors.question && (
+          <p className="text-xs text-red-500 mt-1">{errors.question}</p>
+        )}
+      </div>
+
+      {form.questionType === "CODE" && (
+        <div>
+          <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">
+            Code Snippet
+          </label>
+          <textarea
+            value={form.codeSnippet}
+            onChange={set("codeSnippet")}
+            className={`${inputCls} font-mono text-xs resize-none`}
+            rows={4}
+            placeholder="Paste code snippet here..."
+          />
+        </div>
+      )}
+
+      <div>
+        <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">
+          Answer *
+        </label>
+        <RichAnswerEditor
+          value={form.answer}
+          onChange={(val) => setForm((prev) => ({ ...prev, answer: val }))}
+          error={errors.answer}
+        />
+      </div>
+
+      <div className="flex justify-end gap-2 pt-1">
+        <button
+          onClick={onCancel}
+          className="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:text-slate-700 transition-colors"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleSubmit}
+          disabled={saving}
+          className="px-4 py-1.5 bg-[#00A86B] hover:bg-[#008f5a] text-white text-xs font-bold rounded-lg shadow-md transition-all duration-200 disabled:opacity-60"
+        >
+          {saving ? "Saving..." : isEdit ? "Update" : "Add"}
+        </button>
+      </div>
+    </div>
+  );
+}

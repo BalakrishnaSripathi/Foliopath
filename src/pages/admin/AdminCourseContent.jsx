@@ -648,7 +648,7 @@ export default function AdminCourseContent() {
                       <button
                         onClick={() =>
                           navigate(
-                            `/admin/courses/${courseId}/modules/${mod.id}/mock-tests`
+                            `/admin/dashboard/courses/${courseId}/modules/${mod.id}/mock-tests`
                           )
                         }
                         className="text-xs font-semibold text-blue-600 hover:underline flex items-center gap-1"

@@ -25,6 +25,7 @@ import {
   ClipboardList,
   Search,
   Code,
+  FileText,
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
@@ -43,6 +44,14 @@ import {
   submitMockTestAttempt,
   getMyMockTestAttempt,
 } from "../../api/mockTestService";
+import {
+  getMyEnrolledKits,
+  getPublishedKits,
+  getKitById,
+  enrollInKit,
+} from "../../api/interviewKitService";
+import RenderAnswer from "../../components/admin/RenderAnswer";
+import StudentProfile from "./StudentProfile";
 import { useAuth } from "../../context/AuthContext";
 
 const LEVEL_COLORS = {
@@ -424,17 +433,31 @@ export default function StudentDashboard() {
   const [myCoursesFilter, setMyCoursesFilter] = useState("ALL");
   const [courseSearch, setCourseSearch] = useState("");
 
+  const [enrolledKits, setEnrolledKits] = useState([]);
+  const [publishedKits, setPublishedKits] = useState([]);
+  const [selectedKit, setSelectedKit] = useState(null);
+  const [kitDetail, setKitDetail] = useState(null);
+  const [kitLoading, setKitLoading] = useState(false);
+  const [kitSearch, setKitSearch] = useState("");
+  const [enrolledKitIds, setEnrolledKitIds] = useState(new Set());
+
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     try {
-      const [enrollRes, coursesRes] = await Promise.all([
+      const [enrollRes, coursesRes, enrolledKitsRes, publishedKitsRes] = await Promise.all([
         getMyEnrollments().catch(() => ({ data: [] })),
         getPublishedCourses().catch(() => ({ data: [] })),
+        getMyEnrolledKits().catch(() => ({ data: [] })),
+        getPublishedKits().catch(() => ({ data: [] })),
       ]);
       const list = Array.isArray(enrollRes.data) ? enrollRes.data : [];
       setEnrollments(list.filter((e) => e.enrollmentStatus !== "DROPPED"));
       setPublishedCourses(Array.isArray(coursesRes.data) ? coursesRes.data : []);
+      const kitsList = Array.isArray(enrolledKitsRes.data) ? enrolledKitsRes.data : [];
+      setEnrolledKits(kitsList);
+      setEnrolledKitIds(new Set(kitsList.map((k) => k.kitId)));
+      setPublishedKits(Array.isArray(publishedKitsRes.data) ? publishedKitsRes.data : []);
     } catch (err) {
       console.error("Failed to load dashboard:", err);
     } finally {
@@ -454,6 +477,8 @@ export default function StudentDashboard() {
     setInlineLesson(null);
     setInlineMockTest(null);
     setInlineMockResult(null);
+    setSelectedKit(null);
+    setKitDetail(null);
     try {
       const [courseRes, modulesRes] = await Promise.all([getCourseById(courseId), getModules(courseId)]);
       setCourseDetail(courseRes.data);
@@ -477,6 +502,34 @@ export default function StudentDashboard() {
       setCourseLoading(false);
     }
   }, []);
+
+  const openKitDetail = useCallback(async (kitId) => {
+    setSelectedKit(kitId);
+    setKitLoading(true);
+    setKitDetail(null);
+    setSelectedCourseId(null);
+    setCourseDetail(null);
+    try {
+      const { data } = await getKitById(kitId);
+      setKitDetail(data);
+    } catch (err) {
+      console.error("Failed to load kit:", err);
+      toast.error("Failed to load interview kit");
+    } finally {
+      setKitLoading(false);
+    }
+  }, []);
+
+  const handleEnrollInKit = async (kitId) => {
+    try {
+      await enrollInKit(kitId);
+      setEnrolledKitIds((prev) => new Set([...prev, kitId]));
+      toast.success("Enrolled in kit successfully!");
+      loadData();
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to enroll in kit");
+    }
+  };
 
   const firstName = user?.firstName || "Student";
   const inProgress = enrollments.filter((e) => e.enrollmentStatus === "IN_PROGRESS" || e.enrollmentStatus === "ENROLLED");
@@ -531,6 +584,75 @@ export default function StudentDashboard() {
   const isEnrolled = !!courseEnrollment;
   const path = location.pathname;
   const isMyCourses = path.includes("/my-courses");
+  const isInterviewKits = path.includes("/interview-kits");
+  const isSettings = path.includes("/settings");
+
+  /* ── Route-based: settings / profile ──────────────────────────── */
+  if (isSettings) {
+    return <StudentProfile embedded />;
+  }
+
+  /* ── Route-based: interview kit detail ──────────────────────── */
+  if (selectedKit) {
+    return (
+      <div className="p-6 space-y-6">
+        <button onClick={() => { setSelectedKit(null); setKitDetail(null); }} className="flex items-center gap-2 text-sm text-slate-500 hover:text-[#00A86B] transition-colors">
+          <ArrowLeft size={16} /> Back to Interview Kits
+        </button>
+        {kitLoading ? (
+          <div className="flex items-center justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#00A86B]" /></div>
+        ) : kitDetail ? (
+          <div className="space-y-6">
+            <div className="bg-gradient-to-br from-[#422006] to-[#78350f] rounded-2xl p-6 text-white">
+              <div className="flex flex-col lg:flex-row gap-6">
+                <div className="flex-1">
+                  <span className="text-xs font-bold text-amber-300 tracking-wider uppercase">{kitDetail.level}</span>
+                  <h1 className="text-2xl font-bold mt-2 mb-3">{kitDetail.name}</h1>
+                  <p className="text-slate-300 text-sm leading-relaxed mb-4">{kitDetail.description || "No description available."}</p>
+                  <div className="flex flex-wrap items-center gap-4 text-sm text-slate-300">
+                    <span className="flex items-center gap-1"><ClipboardList className="w-4 h-4" />{kitDetail.questionCount || kitDetail.questions?.length || 0} questions</span>
+                    <span className="flex items-center gap-1"><Clock className="w-4 h-4" />{kitDetail.level}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-2xl border border-slate-100 p-6">
+              <h2 className="text-lg font-bold text-[#0B2545] mb-4">Questions</h2>
+              {kitDetail.questions?.length > 0 ? (
+                <div className="space-y-4">
+                  {kitDetail.questions.map((q, idx) => (
+                    <div key={q.id || idx} className="border border-slate-100 rounded-xl p-4">
+                      <div className="flex items-start gap-3">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${q.questionType === "CODE" ? "bg-blue-50" : "bg-green-50"}`}>
+                          {q.questionType === "CODE" ? <Code className="w-4 h-4 text-blue-500" /> : <FileText className="w-4 h-4 text-green-500" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-[#0B2545]">Q{idx + 1}. {q.question}</p>
+                          {q.codeSnippet && (
+                            <pre className="mt-2 text-xs font-mono bg-[#0B2545] text-green-400 rounded-xl p-3 overflow-x-auto whitespace-pre-wrap">{q.codeSnippet}</pre>
+                          )}
+                           {enrolledKitIds.has(kitDetail.id) && (
+                            <div className="mt-3 p-3 bg-green-50 rounded-xl border border-green-100">
+                              <p className="text-xs font-semibold text-green-700 mb-1">Answer:</p>
+                              <RenderAnswer content={q.answer} />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-slate-400 text-center py-6">No questions in this kit yet.</p>
+              )}
+            </div>
+          </div>
+        ) : (
+          <p className="text-slate-500 text-center py-10">Kit not found</p>
+        )}
+      </div>
+    );
+  }
 
   /* ── Route-based: lesson view ──────────────────────────────── */
   if (moduleId && lessonId) {
@@ -665,7 +787,7 @@ export default function StudentDashboard() {
   }
 
   /* ── DASHBOARD VIEW ───────────────────────────────────────── */
-  if (!isMyCourses) {
+  if (!isMyCourses && !isInterviewKits) {
     return (
       <div className="p-6 space-y-6">
         <div>
@@ -782,6 +904,103 @@ export default function StudentDashboard() {
               </div>
             </div>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ── INTERVIEW KITS VIEW ─────────────────────────────────── */
+  if (isInterviewKits) {
+    return (
+      <div className="p-6 space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">Interview Kits</h1>
+          <p className="text-sm text-slate-500 mt-0.5">
+            {enrolledKits.length} enrolled kit{enrolledKits.length !== 1 ? "s" : ""} · {publishedKits.length} available
+          </p>
+        </div>
+
+        {/* Enrolled Kits */}
+        {enrolledKits.length > 0 && (
+          <div>
+            <h2 className="font-semibold text-slate-800 mb-3">My Interview Kits</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {enrolledKits.map((kit) => (
+                <div
+                  key={kit.kitId}
+                  className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow cursor-pointer"
+                  onClick={() => openKitDetail(kit.kitId)}
+                >
+                  <div className="h-24 flex items-center justify-center bg-gradient-to-br from-[#422006] to-[#78350f] relative">
+                    <Briefcase className="w-8 h-8 text-amber-300" />
+                    <span className="absolute top-2 right-2 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                      ENROLLED
+                    </span>
+                  </div>
+                  <div className="p-3">
+                    <p className="text-sm font-bold text-slate-800 leading-snug">{kit.name}</p>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700">{kit.level}</span>
+                      <span className="text-[10px] text-slate-400">{kit.price > 0 ? `₹${kit.price}` : "Free"}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Available Kits */}
+        <div>
+          <h2 className="font-semibold text-slate-800 mb-3">Available Interview Kits</h2>
+          {publishedKits.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 text-center">
+              <Briefcase className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+              <h2 className="text-lg font-bold text-[#0B2545] mb-2">No kits available</h2>
+              <p className="text-sm text-slate-500">Interview kits will appear here once published.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {publishedKits.filter((k) => !enrolledKitIds.has(k.id)).map((kit) => (
+                <div
+                  key={kit.id}
+                  className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow"
+                >
+                  <div className="h-24 flex items-center justify-center bg-gradient-to-br from-[#422006] to-[#78350f]">
+                    <Briefcase className="w-8 h-8 text-amber-300" />
+                  </div>
+                  <div className="p-4">
+                    <p className="text-sm font-bold text-slate-800 leading-snug">{kit.name}</p>
+                    <p className="text-xs text-slate-500 mt-1 line-clamp-2">{kit.description || "No description"}</p>
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700">{kit.level}</span>
+                      <span className="text-[10px] text-slate-400">{kit.questionCount || 0} questions</span>
+                    </div>
+                    <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
+                      <span className="text-xs font-bold text-[#00A86B]">{kit.price > 0 ? `₹${kit.price}` : "Free"}</span>
+                      {kit.price > 0 ? (
+                        <button className="px-3 py-1.5 bg-[#00A86B] hover:bg-[#008f5a] text-white text-xs font-semibold rounded-lg transition-colors">
+                          Enroll Now
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleEnrollInKit(kit.id)}
+                          className="px-3 py-1.5 bg-[#00A86B] hover:bg-[#008f5a] text-white text-xs font-semibold rounded-lg transition-colors"
+                        >
+                          Enroll Free
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {publishedKits.every((k) => enrolledKitIds.has(k.id)) && enrolledKits.length > 0 && (
+                <div className="col-span-full text-center py-6 text-sm text-slate-400">
+                  You're enrolled in all available kits!
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     );

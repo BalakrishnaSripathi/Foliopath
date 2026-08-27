@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
-import { GraduationCap, Mail, Search, Eye, KeyRound, Power, BookOpen } from "lucide-react";
+import { GraduationCap, Mail, Search, Eye, KeyRound, Power, BookOpen, Briefcase } from "lucide-react";
 import {
   getAllStudentsReport,
   updateStudentStatus,
 } from "../../api/superAdminService";
 import StudentDetailsModal from "./StudentDetailsModal";
 import EnrollStudentModal from "./EnrollStudentModal";
+import EnrollKitModal from "./EnrollKitModal";
 
 export default function AllStudentsTable({ isSuperAdmin, onResetPassword }) {
   const [students, setStudents] = useState([]);
@@ -14,6 +15,7 @@ export default function AllStudentsTable({ isSuperAdmin, onResetPassword }) {
   const [search, setSearch] = useState("");
   const [detailsStudent, setDetailsStudent] = useState(null);
   const [enrollStudent, setEnrollStudent] = useState(null);
+  const [enrollKitStudent, setEnrollKitStudent] = useState(null);
 
   useEffect(() => {
     loadStudents();
@@ -197,6 +199,14 @@ export default function AllStudentsTable({ isSuperAdmin, onResetPassword }) {
                           >
                             <BookOpen className="w-4 h-4" />
                           </button>
+                          <button
+                            onClick={() => setEnrollKitStudent(student)}
+                            title="Enroll in interview kit"
+                            className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-150 hover:opacity-80 active:scale-95"
+                            style={{ color: "#f59e0b", background: "#f59e0b15", border: "1px solid #f59e0b30" }}
+                          >
+                            <Briefcase className="w-4 h-4" />
+                          </button>
                         </>
                       )}
                     </div>
@@ -219,6 +229,14 @@ export default function AllStudentsTable({ isSuperAdmin, onResetPassword }) {
         <EnrollStudentModal
           student={enrollStudent}
           onClose={() => setEnrollStudent(null)}
+          onSuccess={loadStudents}
+        />
+      )}
+
+      {enrollKitStudent && (
+        <EnrollKitModal
+          student={enrollKitStudent}
+          onClose={() => setEnrollKitStudent(null)}
           onSuccess={loadStudents}
         />
       )}

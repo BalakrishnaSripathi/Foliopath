@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import {
   Home,
@@ -12,8 +12,6 @@ import {
   HelpCircle,
   LogOut,
   Menu,
-  ChevronDown,
-  User,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 
@@ -33,20 +31,8 @@ export default function StudentShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(false);
-  const profileRef = useRef(null);
 
   const firstName = user?.firstName || "Student";
-
-  useEffect(() => {
-    function handler(e) {
-      if (profileRef.current && !profileRef.current.contains(e.target)) {
-        setProfileOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
 
   const isActive = (path) => {
     if (path === "/StudentDashboard") return location.pathname === "/StudentDashboard" || location.pathname === "/my-courses";
@@ -108,37 +94,11 @@ export default function StudentShell() {
               <Bell size={17} />
               <span className="absolute top-1 right-1 w-2 h-2 bg-rose-500 rounded-full border border-white" />
             </button>
-            <div className="relative" ref={profileRef}>
-              <button onClick={() => setProfileOpen((o) => !o)} className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#00A86B] to-[#0B2545] flex items-center justify-center text-white text-xs font-bold">
-                  {firstName.charAt(0).toUpperCase()}
-                </div>
-                <span className="text-sm font-medium text-slate-700 hidden sm:block">{firstName}</span>
-                <ChevronDown size={14} className="text-slate-400" />
-              </button>
-              {profileOpen && (
-                <div className="absolute right-0 top-12 w-48 rounded-2xl shadow-xl z-50 bg-white border border-slate-100 overflow-hidden">
-                  <div className="px-4 py-3 border-b border-slate-100">
-                    <div className="text-sm font-bold text-[#0B2545]">{firstName}</div>
-                    <div className="text-xs text-slate-400">{user?.email}</div>
-                  </div>
-                  <div className="py-1">
-                    <button onClick={() => { setProfileOpen(false); navigate("/StudentDashboard"); }} className="w-full px-4 py-2.5 text-left text-sm text-slate-600 hover:bg-slate-50 flex items-center gap-3 transition-colors">
-                      <Home className="w-4 h-4 text-slate-400" /> Dashboard
-                    </button>
-                    <button onClick={() => { setProfileOpen(false); navigate("/StudentDashboard/my-courses"); }} className="w-full px-4 py-2.5 text-left text-sm text-slate-600 hover:bg-slate-50 flex items-center gap-3 transition-colors">
-                      <BookOpen className="w-4 h-4 text-slate-400" /> My Courses
-                    </button>
-                    <button onClick={() => { setProfileOpen(false); navigate("/my-profile"); }} className="w-full px-4 py-2.5 text-left text-sm text-slate-600 hover:bg-slate-50 flex items-center gap-3 transition-colors">
-                      <User className="w-4 h-4 text-slate-400" /> Profile
-                    </button>
-                    <div className="my-1 border-t border-slate-100" />
-                    <button onClick={() => { setProfileOpen(false); logout(); navigate("/login"); }} className="w-full px-4 py-2.5 text-left text-sm text-red-500 hover:bg-red-50 flex items-center gap-3 transition-colors">
-                      <LogOut className="w-4 h-4" /> Logout
-                    </button>
-                  </div>
-                </div>
-              )}
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#00A86B] to-[#0B2545] flex items-center justify-center text-white text-xs font-bold">
+                {firstName.charAt(0).toUpperCase()}
+              </div>
+              <span className="text-sm font-medium text-slate-700 hidden sm:block">{firstName}</span>
             </div>
           </div>
         </header>
