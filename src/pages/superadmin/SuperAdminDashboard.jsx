@@ -62,35 +62,12 @@ import {
 
 // ─── Chart Data ───────────────────────────────────────────────────────────────
 
-const REVENUE_LINE = [
-  { month: "Mar", revenue: 120 },
-  { month: "Apr", revenue: 340 },
-  { month: "May", revenue: 210 },
-  { month: "Jun", revenue: 480 },
-  { month: "Jul", revenue: 390 },
-  { month: "Aug", revenue: 640 },
-];
-
-const PAYMENTS_DATA = [
-  { id: "PAY-001", student: "Balakrishna sripathi", course: "Java", amount: "₹399", date: "21 Aug 2026", method: "UPI", status: "Success" },
-  { id: "PAY-002", student: "Priya Sharma", course: "Python", amount: "₹2", date: "20 Aug 2026", method: "Card", status: "Success" },
-  { id: "PAY-003", student: "Ravi Kumar", course: "Java", amount: "₹399", date: "19 Aug 2026", method: "Net Banking", status: "Pending" },
-  { id: "PAY-004", student: "Anita Reddy", course: "Python", amount: "₹2", date: "18 Aug 2026", method: "UPI", status: "Failed" },
-];
-
 const INTERVIEW_KITS = [
   { id: 1, title: "Java Full Stack Interview Kit", topics: 42, level: "Intermediate", downloads: 128, color: "#f59e0b", tag: "Popular" },
   { id: 2, title: "Python Data Science Kit", topics: 35, level: "Advanced", downloads: 94, color: "#00A86B", tag: "New" },
   { id: 3, title: "System Design Fundamentals", topics: 28, level: "Advanced", downloads: 76, color: "#0B2545", tag: "" },
   { id: 4, title: "DSA Crash Course Kit", topics: 60, level: "Beginner", downloads: 212, color: "#f472b6", tag: "Hot" },
   { id: 5, title: "DevOps & CI/CD Kit", topics: 22, level: "Intermediate", downloads: 55, color: "#60a5fa", tag: "" },
-];
-
-const REPORTS_DATA = [
-  { label: "Total Revenue", value: "₹2,180", change: "+28%", up: true, icon: "💰" },
-  { label: "Active Students", value: "1", change: "+0%", up: true, icon: "🎓" },
-  { label: "Course Completion Rate", value: "68%", change: "+12%", up: true, icon: "📊" },
-  { label: "Avg. Session Duration", value: "42 min", change: "-3%", up: false, icon: "⏱️" },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -129,6 +106,7 @@ function StatusBadge({ status }) {
     Success: { text: "text-green-600", bg: "bg-green-50", border: "border-green-200" },
     Pending: { text: "text-amber-600", bg: "bg-amber-50", border: "border-amber-200" },
     Failed: { text: "text-red-500", bg: "bg-red-50", border: "border-red-200" },
+    Refunded: { text: "text-red-500", bg: "bg-red-50", border: "border-red-200" },
     Disabled: { text: "text-red-500", bg: "bg-red-50", border: "border-red-200" },
   };
   const s = map[status] || { text: "text-slate-500", bg: "bg-slate-100", border: "border-slate-200" };
@@ -246,7 +224,11 @@ const TooltipBar = ({ active, payload, label }) => {
 // ─── Overview Section ─────────────────────────────────────────────────────────
 
 function OverviewSection({ stats, courses }) {
-  const totalRevenue = REVENUE_LINE.reduce((s, r) => s + r.revenue, 0);
+  const totalRevenue = stats?.totalRevenue || 0;
+  const revenueLine = (stats?.monthlyRevenue || []).map((r) => ({
+    month: r.month,
+    revenue: Number(r.revenue) || 0,
+  }));
   const enrollmentsData = stats?.monthlyEnrollments || [];
   const totalEnrollments = enrollmentsData.reduce((s, r) => s + r.count, 0);
 
@@ -289,10 +271,10 @@ function OverviewSection({ stats, courses }) {
               <div className="text-3xl font-extrabold text-[#00A86B]">₹{totalRevenue.toLocaleString()}</div>
               <div className="text-xs text-green-600 mt-0.5">+28% vs last period</div>
             </div>
-            <span className="text-xs font-mono px-2 py-1 rounded-lg bg-green-50 text-[#00A86B]">Mar – Aug 2026</span>
+            <span className="text-xs font-mono px-2 py-1 rounded-lg bg-green-50 text-[#00A86B]">Live Revenue</span>
           </div>
           <ResponsiveContainer width="100%" height={180}>
-            <AreaChart data={REVENUE_LINE} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+            <AreaChart data={revenueLine} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
               <defs>
                 <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#00A86B" stopOpacity={0.25} />
@@ -338,7 +320,7 @@ function OverviewSection({ stats, courses }) {
       <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
           { icon: "👥", label: "Avg. per Course", value: `${courses.length ? (totalEnrollments / courses.length).toFixed(1) : 0} students`, color: "#0B2545" },
-          { icon: "💰", label: "Avg. Revenue / Mo", value: `₹${Math.round(totalRevenue / REVENUE_LINE.length)}`, color: "#00A86B" },
+          { icon: "💰", label: "Avg. Revenue / Mo", value: `₹${Math.round(totalRevenue / (revenueLine.length || 1)).toLocaleString("en-IN")}`, color: "#00A86B" },
           { icon: "📈", label: "Peak Month", value: "Aug 2026", color: "#f59e0b" },
         ].map((s) => (
           <div key={s.label} className="rounded-2xl p-4 flex items-center gap-4 bg-white border border-slate-100 shadow-sm">
@@ -614,8 +596,14 @@ function EnrollmentsSection({ stats }) {
 
 // ─── Payments Section ─────────────────────────────────────────────────────────
 
-function PaymentsSection() {
-  const totalAmt = PAYMENTS_DATA.filter((p) => p.status === "Success").reduce((s, p) => s + parseInt(p.amount.replace("₹", "")), 0);
+function PaymentsSection({ stats }) {
+  const transactions = stats?.transactions || [];
+  const totalCollected = Number(stats?.totalRevenue) || 0;
+  const successCount = transactions.filter((t) => t.status === "SUCCESS").length;
+  const refundCount = transactions.filter((t) => t.status === "REFUNDED").length;
+  const pendingCount = transactions.filter(
+    (t) => t.status !== "SUCCESS" && t.status !== "REFUNDED"
+  ).length;
   return (
     <div>
       <div className="mb-8">
@@ -624,10 +612,10 @@ function PaymentsSection() {
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
         {[
-          { label: "Total Collected", value: `₹${totalAmt}`, color: "#00A86B" },
-          { label: "Successful", value: String(PAYMENTS_DATA.filter((p) => p.status === "Success").length), color: "#0B2545" },
-          { label: "Pending", value: String(PAYMENTS_DATA.filter((p) => p.status === "Pending").length), color: "#f59e0b" },
-          { label: "Failed", value: String(PAYMENTS_DATA.filter((p) => p.status === "Failed").length), color: "#ef4444" },
+          { label: "Total Collected", value: `₹${totalCollected.toLocaleString("en-IN")}`, color: "#00A86B" },
+          { label: "Successful", value: String(successCount), color: "#0B2545" },
+          { label: "Pending", value: String(pendingCount), color: "#f59e0b" },
+          { label: "Unenrolled", value: String(refundCount), color: "#ef4444" },
         ].map((s) => (
           <div key={s.label} className="rounded-2xl p-4 flex flex-col gap-2 bg-white border border-slate-100 shadow-sm">
             <span className="text-xs font-mono uppercase tracking-wider text-slate-400">{s.label}</span>
@@ -635,7 +623,7 @@ function PaymentsSection() {
           </div>
         ))}
       </div>
-      <SectionHeader title="Transactions" count={PAYMENTS_DATA.length} />
+      <SectionHeader title="Transactions" count={transactions.length} />
       <TableWrapper>
         <thead>
           <tr>
@@ -649,28 +637,40 @@ function PaymentsSection() {
           </tr>
         </thead>
         <tbody>
-          {PAYMENTS_DATA.map((p) => (
-            <tr key={p.id} className="hover:bg-slate-50 transition-colors">
-              <Td mono>{p.id}</Td>
-              <Td>
-                <div className="flex items-center gap-2">
-                  <Avatar name={p.student} size={28} />
-                  <span className="text-sm text-[#0B2545] font-semibold">{p.student}</span>
-                </div>
-              </Td>
-              <Td>{p.course}</Td>
-              <Td mono>
-                <span className="font-bold text-[#00A86B]">{p.amount}</span>
-              </Td>
-              <Td>
-                <span className="text-xs px-2 py-0.5 rounded font-mono bg-slate-100 text-slate-600">{p.method}</span>
-              </Td>
-              <Td mono>{p.date}</Td>
-              <Td>
-                <StatusBadge status={p.status} />
-              </Td>
+          {transactions.length === 0 ? (
+            <tr>
+              <td colSpan={7} className="px-4 py-8 text-center text-sm text-slate-400">
+                No transactions yet
+              </td>
             </tr>
-          ))}
+          ) : (
+            transactions.map((t) => (
+              <tr key={t.id} className="hover:bg-slate-50 transition-colors">
+                <Td mono>{t.txnId}</Td>
+                <Td>
+                  <div className="flex items-center gap-2">
+                    <Avatar name={t.studentName} size={28} />
+                    <span className="text-sm text-[#0B2545] font-semibold">{t.studentName}</span>
+                  </div>
+                </Td>
+                <Td>{t.courseTitle}</Td>
+                <Td mono>
+                  {t.status === "REFUNDED" ? (
+                    <span className="font-bold text-red-500">-₹{Math.abs(Number(t.amount)).toLocaleString("en-IN")}</span>
+                  ) : (
+                    <span className="font-bold text-[#00A86B]">₹{Number(t.amount).toLocaleString("en-IN")}</span>
+                  )}
+                </Td>
+                <Td>
+                  <span className="text-xs px-2 py-0.5 rounded font-mono bg-slate-100 text-slate-600">{t.method}</span>
+                </Td>
+                <Td mono>{t.date ? new Date(t.date).toLocaleDateString("en-IN") : ""}</Td>
+                <Td>
+                  <StatusBadge status={t.status === "SUCCESS" ? "Success" : "Refunded"} />
+                </Td>
+              </tr>
+            ))
+          )}
         </tbody>
       </TableWrapper>
     </div>
@@ -679,7 +679,15 @@ function PaymentsSection() {
 
 // ─── Reports Section ──────────────────────────────────────────────────────────
 
-function ReportsSection() {
+function ReportsSection({ stats }) {
+  const totalRevenue = stats?.totalRevenue || 0;
+  const revenueLine = (stats?.monthlyRevenue || []).map((r) => ({
+    month: r.month,
+    revenue: Number(r.revenue) || 0,
+  }));
+  const avg = revenueLine.length
+    ? Math.round(totalRevenue / revenueLine.length)
+    : Math.round(totalRevenue);
   return (
     <div>
       <div className="mb-8">
@@ -687,17 +695,15 @@ function ReportsSection() {
         <p className="text-sm text-slate-500">Platform performance and analytics summary</p>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {REPORTS_DATA.map((r) => (
+        {[
+          { label: "Total Revenue", value: `₹${Number(totalRevenue).toLocaleString("en-IN")}`, change: "", up: true, icon: "💰" },
+          { label: "Active Students", value: String(stats?.activeStudents || 0), change: "", up: true, icon: "🎓" },
+          { label: "Published Courses", value: String(stats?.publishedCourses || 0), change: "", up: true, icon: "📘" },
+          { label: "Total Transactions", value: String(stats?.transactions?.length || 0), change: "", up: true, icon: "💳" },
+        ].map((r) => (
           <div key={r.label} className="rounded-2xl p-5 flex flex-col gap-3 bg-white border border-slate-100 shadow-sm">
             <div className="flex items-center justify-between">
               <span className="text-xl">{r.icon}</span>
-              <span
-                className={`text-xs font-mono font-semibold px-2 py-0.5 rounded ${
-                  r.up ? "bg-green-50 text-green-600" : "bg-red-50 text-red-500"
-                }`}
-              >
-                {r.change}
-              </span>
             </div>
             <div>
               <div className="text-2xl font-extrabold text-[#0B2545]">{r.value}</div>
@@ -707,9 +713,12 @@ function ReportsSection() {
         ))}
       </div>
       <div className="rounded-2xl p-5 bg-white border border-slate-100 shadow-sm">
-        <h3 className="font-bold text-[#0B2545] mb-5">Revenue Trend (Mar – Aug 2026)</h3>
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="font-bold text-[#0B2545]">Revenue Trend</h3>
+          <span className="text-xs font-mono text-slate-400">Avg. ₹{avg.toLocaleString("en-IN")} / mo</span>
+        </div>
         <ResponsiveContainer width="100%" height={220}>
-          <AreaChart data={REVENUE_LINE} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+          <AreaChart data={revenueLine} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
             <defs>
               <linearGradient id="repGrad" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#0B2545" stopOpacity={0.15} />
@@ -1272,9 +1281,9 @@ export default function CombinedDashboard() {
       case "enrollments":
         return <EnrollmentsSection stats={stats} />;
       case "payments":
-        return <PaymentsSection />;
+        return <PaymentsSection stats={stats} />;
       case "reports":
-        return <ReportsSection />;
+        return <ReportsSection stats={stats} />;
       case "interview":
         return (
           <InterviewKitsSection

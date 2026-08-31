@@ -11,6 +11,7 @@ import {
   Pencil,
   ArrowUp,
   ArrowDown,
+  ClipboardList,
 } from "lucide-react";
 import {
   getCourseById,
@@ -22,6 +23,13 @@ import {
   updateLesson,
   deleteLesson,
 } from "../../api/courseService";
+import {
+  getMockTests,
+  createMockTest,
+  updateMockTest,
+  deleteMockTest,
+  OPTION_LABELS,
+} from "../../api/mockTestService";
 import RichTextEditor from "../../components/RichTextEditor";
 
 const LESSON_TYPES = ["CONCEPT", "TEXT_ONLY", "CODE_ONLY", "TEXT_AND_CODE"];
@@ -38,6 +46,7 @@ const CODE_LANGUAGES = [
   "json",
   "bash",
 ];
+const QUESTION_TYPES = ["TEXT", "CODE"];
 
 const emptyItem = (displayOrder) => ({
   title: "",
@@ -62,6 +71,311 @@ const emptyForm = (displayOrder) => ({
   estimatedMinutes: 10,
   items: [],
 });
+
+const emptyQuestion = (displayOrder) => ({
+  questionType: "TEXT",
+  questionText: "",
+  codeContent: "",
+  codeLanguage: "javascript",
+  options: [
+    { label: "A", text: "" },
+    { label: "B", text: "" },
+    { label: "C", text: "" },
+    { label: "D", text: "" },
+  ],
+  correctOption: "A",
+  displayOrder,
+});
+
+const emptyTestForm = (displayOrder) => ({
+  title: "",
+  description: "",
+  durationMinutes: 15,
+  passPercentage: 50,
+  displayOrder,
+  questions: [],
+});
+
+function QuestionEditor({ question, index, onChange, onRemove }) {
+  const set = (field) => (e) =>
+    onChange({ ...question, [field]: e.target.value });
+
+  const setOptionText = (optIndex, value) => {
+    onChange({
+      ...question,
+      options: question.options.map((opt, i) =>
+        i === optIndex ? { ...opt, text: value } : opt
+      ),
+    });
+  };
+
+  const inputCls =
+    "w-full px-3 py-2 text-sm bg-white rounded-lg border border-slate-200 focus:border-[#00A86B] focus:outline-none";
+  const labelCls =
+    "block text-xs font-semibold text-slate-500 uppercase mb-1 tracking-wide";
+
+  return (
+    <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-bold text-slate-500">
+          Question {index + 1}
+        </span>
+        {onRemove && (
+          <button
+            type="button"
+            onClick={onRemove}
+            className="p-1 text-red-400 hover:text-red-600"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div>
+          <label className={labelCls}>Question Type *</label>
+          <select value={question.questionType} onChange={set("questionType")} className={inputCls}>
+            {QUESTION_TYPES.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+        </div>
+        {question.questionType === "CODE" && (
+          <div>
+            <label className={labelCls}>Code Language</label>
+            <select value={question.codeLanguage} onChange={set("codeLanguage")} className={inputCls}>
+              {CODE_LANGUAGES.map((l) => (
+                <option key={l} value={l}>{l}</option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
+
+      <div>
+        <label className={labelCls}>
+          {question.questionType === "CODE"
+            ? "Question / Instructions *"
+            : "Question *"}
+        </label>
+        <textarea
+          value={question.questionText}
+          onChange={set("questionText")}
+          rows={2}
+          className={`${inputCls} resize-y`}
+          placeholder={
+            question.questionType === "CODE"
+              ? "e.g. What does this code print?"
+              : "Type the question here"
+          }
+        />
+      </div>
+
+      {question.questionType === "CODE" && (
+        <div>
+          <label className={labelCls}>Code Snippet</label>
+          <textarea
+            value={question.codeContent}
+            onChange={set("codeContent")}
+            rows={5}
+            className="w-full px-3 py-2 text-sm font-mono bg-[#0B2545] text-green-400 rounded-lg border border-slate-700 focus:outline-none resize-y"
+            placeholder="// Code shown to the student"
+          />
+        </div>
+      )}
+
+      <div>
+        <label className={labelCls}>Options (exactly 4) &amp; Correct Answer *</label>
+        <div className="space-y-2">
+          {question.options.map((opt, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => onChange({ ...question, correctOption: OPTION_LABELS[i] })}
+                className={`w-8 h-8 flex-shrink-0 rounded-lg text-xs font-bold transition-colors ${
+                  question.correctOption === OPTION_LABELS[i]
+                    ? "bg-[#00A86B] text-white"
+                    : "bg-white border border-slate-200 text-slate-400 hover:border-[#00A86B] hover:text-[#00A86B]"
+                }`}
+                title="Mark as correct answer"
+              >
+                {OPTION_LABELS[i]}
+              </button>
+              <input
+                type="text"
+                value={opt.text}
+                onChange={(e) => setOptionText(i, e.target.value)}
+                className={`${inputCls} ${
+                  question.correctOption === OPTION_LABELS[i]
+                    ? "border-[#00A86B]"
+                    : ""
+                }`}
+                placeholder={`Option ${OPTION_LABELS[i]}`}
+              />
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-slate-400 mt-1">
+          Click a letter button to mark the correct answer (green).
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function MockTestForm({ initial, onSave, onCancel, saving }) {
+  const [form, setForm] = useState(initial);
+
+  const set = (field) => (e) =>
+    setForm((prev) => ({ ...prev, [field]: e.target.value }));
+
+  const addQuestion = () => {
+    setForm((prev) => ({
+      ...prev,
+      questions: [...prev.questions, emptyQuestion(prev.questions.length + 1)],
+    }));
+  };
+
+  const updateQuestion = (index, updated) => {
+    setForm((prev) => ({
+      ...prev,
+      questions: prev.questions.map((q, i) => (i === index ? updated : q)),
+    }));
+  };
+
+  const removeQuestion = (index) => {
+    setForm((prev) => ({
+      ...prev,
+      questions: prev.questions
+        .filter((_, i) => i !== index)
+        .map((q, i) => ({ ...q, displayOrder: i + 1 })),
+    }));
+  };
+
+  const inputCls =
+    "w-full px-3 py-2 text-sm bg-white rounded-lg border border-slate-200 focus:border-[#00A86B] focus:outline-none";
+  const labelCls =
+    "block text-xs font-semibold text-slate-500 uppercase mb-1 tracking-wide";
+
+  return (
+    <div className="p-4 space-y-4 bg-slate-50 border-t border-slate-100">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label className={labelCls}>Title *</label>
+          <input
+            type="text"
+            value={form.title}
+            onChange={set("title")}
+            className={inputCls}
+            placeholder="e.g. Module 1 Practice Test"
+          />
+        </div>
+        <div>
+          <label className={labelCls}>Description</label>
+          <input
+            type="text"
+            value={form.description}
+            onChange={set("description")}
+            className={inputCls}
+            placeholder="Short description"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-4">
+        <div>
+          <label className={labelCls}>Duration (min)</label>
+          <input
+            type="number"
+            min={1}
+            value={form.durationMinutes}
+            onChange={set("durationMinutes")}
+            className={inputCls}
+          />
+        </div>
+        <div>
+          <label className={labelCls}>Pass %</label>
+          <input
+            type="number"
+            min={0}
+            max={100}
+            value={form.passPercentage}
+            onChange={set("passPercentage")}
+            className={inputCls}
+          />
+        </div>
+        <div>
+          <label className={labelCls}>Display Order</label>
+          <input
+            type="number"
+            min={1}
+            value={form.displayOrder}
+            onChange={set("displayOrder")}
+            className={inputCls}
+          />
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+            Questions ({form.questions.length})
+          </label>
+          <button
+            type="button"
+            onClick={addQuestion}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-white border border-slate-200 rounded-lg hover:border-[#00A86B] hover:text-[#00A86B] transition-all duration-200"
+          >
+            <Plus className="w-3 h-3" />
+            Add Question
+          </button>
+        </div>
+
+        {form.questions.length === 0 && (
+          <p className="text-xs text-slate-400">
+            No questions yet. Click &quot;Add Question&quot; to add one.
+          </p>
+        )}
+
+        {form.questions.map((q, idx) => (
+          <QuestionEditor
+            key={idx}
+            question={q}
+            index={idx}
+            onChange={(updated) => updateQuestion(idx, updated)}
+            onRemove={() => removeQuestion(idx)}
+          />
+        ))}
+      </div>
+
+      <div className="flex items-center gap-2 pt-1">
+        <button
+          type="button"
+          onClick={() => onSave(form)}
+          disabled={
+            saving ||
+            !form.title.trim() ||
+            form.questions.length === 0 ||
+            form.questions.some(
+              (q) => !q.questionText.trim() || q.options.some((o) => !o.text.trim())
+            )
+          }
+          className="flex items-center gap-2 bg-[#00A86B] text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-[#008f5a] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <Save className="w-3 h-3" />
+          {saving ? "Saving..." : "Save Mock Test"}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="text-sm font-semibold text-slate-500 hover:text-slate-700 px-3 py-2"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function LessonItemsEditor({ items, onChange }) {
   const updateItem = (index, field, value) => {
@@ -378,10 +692,13 @@ export default function AdminCourseContent() {
   const [course, setCourse] = useState(null);
   const [modules, setModules] = useState([]);
   const [lessonsByModule, setLessonsByModule] = useState({});
+  const [mockTestsByModule, setMockTestsByModule] = useState({});
   const [loading, setLoading] = useState(true);
   const [expandedModule, setExpandedModule] = useState(null);
-  const [formState, setFormState] = useState(null); // { moduleId, lessonId | null }
+  const [formState, setFormState] = useState(null);
+  const [mockTestFormState, setMockTestFormState] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [mockTestSaving, setMockTestSaving] = useState(false);
   const [newModuleTitle, setNewModuleTitle] = useState("");
   const [showAddModule, setShowAddModule] = useState(false);
 
@@ -414,16 +731,31 @@ export default function AdminCourseContent() {
     }
   };
 
+  const loadMockTests = async (moduleId) => {
+    try {
+      const { data } = await getMockTests(moduleId);
+      setMockTestsByModule((prev) => ({ ...prev, [moduleId]: data }));
+    } catch (err) {
+      console.error("Failed to load mock tests:", err);
+      setMockTestsByModule((prev) => ({ ...prev, [moduleId]: [] }));
+    }
+  };
+
   const handleToggleModule = (moduleId) => {
     const next = expandedModule === moduleId ? null : moduleId;
     setExpandedModule(next);
-    if (next && !lessonsByModule[moduleId]) {
-      loadLessons(moduleId);
+    if (next) {
+      if (!lessonsByModule[moduleId]) loadLessons(moduleId);
+      if (!mockTestsByModule[moduleId]) loadMockTests(moduleId);
     }
   };
 
   const refreshLessons = async (moduleId) => {
     await loadLessons(moduleId);
+  };
+
+  const refreshMockTests = async (moduleId) => {
+    await loadMockTests(moduleId);
   };
 
   const handleAddModule = async () => {
@@ -443,6 +775,7 @@ export default function AdminCourseContent() {
       if (created) {
         setExpandedModule(created.id);
         loadLessons(created.id);
+        loadMockTests(created.id);
       }
     } catch (err) {
       console.error(err);
@@ -459,6 +792,11 @@ export default function AdminCourseContent() {
         delete next[moduleId];
         return next;
       });
+      setMockTestsByModule((prev) => {
+        const next = { ...prev };
+        delete next[moduleId];
+        return next;
+      });
     } catch (err) {
       console.error(err);
     }
@@ -466,6 +804,7 @@ export default function AdminCourseContent() {
 
   const openAddLesson = (mod) => {
     const count = (lessonsByModule[mod.id] || []).length;
+    setMockTestFormState(null);
     setFormState({
       moduleId: mod.id,
       lessonId: null,
@@ -474,6 +813,7 @@ export default function AdminCourseContent() {
   };
 
   const openEditLesson = (mod, lesson) => {
+    setMockTestFormState(null);
     setFormState({
       moduleId: mod.id,
       lessonId: lesson.id,
@@ -541,6 +881,73 @@ export default function AdminCourseContent() {
     try {
       await deleteLesson(moduleId, lessonId);
       await refreshLessons(moduleId);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const openAddMockTest = (mod) => {
+    const count = (mockTestsByModule[mod.id] || []).length;
+    setFormState(null);
+    setMockTestFormState({
+      moduleId: mod.id,
+      testId: null,
+      initial: emptyTestForm(count + 1),
+    });
+  };
+
+  const openEditMockTest = (mod, test) => {
+    setFormState(null);
+    setMockTestFormState({
+      moduleId: mod.id,
+      testId: test.id,
+      initial: {
+        title: test.title || "",
+        description: test.description || "",
+        durationMinutes: test.durationMinutes || 15,
+        passPercentage: test.passPercentage || 50,
+        displayOrder: test.displayOrder || 1,
+        questions: (test.questions || []).map((q, i) => ({
+          questionType: q.questionType || "TEXT",
+          questionText: q.questionText || "",
+          codeContent: q.codeContent || "",
+          codeLanguage: q.codeLanguage || "javascript",
+          options: (q.options || []).slice(0, 4).map((opt, j) => ({
+            label: OPTION_LABELS[j],
+            text: opt?.text || "",
+          })),
+          correctOption: q.correctOption || "A",
+          displayOrder: q.displayOrder || i + 1,
+        })),
+      },
+    });
+  };
+
+  const handleSaveMockTest = async (form) => {
+    if (!mockTestFormState) return;
+    setMockTestSaving(true);
+    try {
+      const { moduleId, testId } = mockTestFormState;
+      if (testId) {
+        await updateMockTest(testId, form);
+      } else {
+        await createMockTest(moduleId, form);
+      }
+      await refreshMockTests(moduleId);
+      setMockTestFormState(null);
+    } catch (err) {
+      console.error("Failed to save mock test:", err);
+      alert(err?.response?.data?.message || err?.message || "Failed to save mock test");
+    } finally {
+      setMockTestSaving(false);
+    }
+  };
+
+  const handleDeleteMockTest = async (testId, moduleId) => {
+    if (!confirm("Delete this mock test?")) return;
+    try {
+      await deleteMockTest(testId);
+      await refreshMockTests(moduleId);
     } catch (err) {
       console.error(err);
     }
@@ -622,6 +1029,9 @@ export default function AdminCourseContent() {
             .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0))
             .map((mod) => {
               const lessons = lessonsByModule[mod.id];
+              const mockTests = mockTestsByModule[mod.id];
+              const totalCount =
+                (lessons?.length || 0) + (mockTests?.length || 0);
               return (
                 <div
                   key={mod.id}
@@ -641,16 +1051,14 @@ export default function AdminCourseContent() {
                         Module {mod.displayOrder}: {mod.title}
                       </span>
                       <span className="text-xs text-slate-400">
-                        ({lessons ? `${lessons.length} lessons` : "click to load"})
+                        {totalCount > 0
+                          ? `(${lessons?.length || 0} lessons, ${mockTests?.length || 0} mock tests)`
+                          : "click to load"}
                       </span>
                     </button>
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() =>
-                          navigate(
-                            `/admin/dashboard/courses/${courseId}/modules/${mod.id}/mock-tests`
-                          )
-                        }
+                        onClick={() => openAddMockTest(mod)}
                         className="text-xs font-semibold text-blue-600 hover:underline flex items-center gap-1"
                       >
                         <Plus className="w-3 h-3" />
@@ -681,9 +1089,9 @@ export default function AdminCourseContent() {
                         </div>
                       )}
 
-                      {lessons && lessons.length === 0 && !formState && (
+                      {lessons && lessons.length === 0 && (!mockTests || mockTests.length === 0) && !formState && !mockTestFormState && (
                         <p className="text-sm text-slate-400 text-center py-4">
-                          No lessons yet. Click &quot;+ Lesson&quot; to add one.
+                          No lessons or mock tests yet. Click &quot;+ Lesson&quot; or &quot;+ Mock Test&quot; to add content.
                         </p>
                       )}
 
@@ -764,6 +1172,94 @@ export default function AdminCourseContent() {
                               onSave={handleSaveLesson}
                               onCancel={() => setFormState(null)}
                               saving={saving}
+                            />
+                          </div>
+                        )}
+
+                      {mockTests && mockTests.length > 0 && (
+                        <div className="border-t border-slate-100 pt-3 mt-3">
+                          <div className="flex items-center gap-2 mb-2">
+                            <ClipboardList className="w-4 h-4 text-blue-600" />
+                            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                              Mock Tests ({mockTests.length})
+                            </span>
+                          </div>
+                          {mockTests
+                            .sort(
+                              (a, b) => (a.displayOrder || 0) - (b.displayOrder || 0)
+                            )
+                            .map((test) => {
+                              const isEditing = mockTestFormState?.testId === test.id;
+
+                              return (
+                                <div
+                                  key={test.id}
+                                  className="border border-slate-200 rounded-xl overflow-hidden mb-2"
+                                >
+                                  <div className="flex items-center justify-between p-3 bg-slate-50">
+                                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                                      <span className="text-xs text-slate-400 font-mono flex-shrink-0">
+                                        MT{test.displayOrder}
+                                      </span>
+                                      <ClipboardList className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
+                                      <span className="text-sm font-semibold text-[#0B2545] truncate">
+                                        {test.title}
+                                      </span>
+                                      <span className="text-xs px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded flex-shrink-0">
+                                        {(test.questions || []).length} questions
+                                      </span>
+                                      <span className="text-xs text-slate-400 hidden sm:inline flex-shrink-0">
+                                        {test.durationMinutes} min
+                                      </span>
+                                      <span className="text-xs text-slate-400 hidden sm:inline flex-shrink-0">
+                                        Pass: {test.passPercentage}%
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-1 flex-shrink-0">
+                                      <button
+                                        onClick={() => openEditMockTest(mod, test)}
+                                        className="text-xs font-semibold text-blue-600 hover:underline px-2 flex items-center gap-1"
+                                      >
+                                        <Pencil className="w-3 h-3" />
+                                        Edit
+                                      </button>
+                                      <button
+                                        onClick={() =>
+                                          handleDeleteMockTest(test.id, mod.id)
+                                        }
+                                        className="p-1 text-red-400 hover:text-red-600"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {isEditing && (
+                                    <MockTestForm
+                                      initial={mockTestFormState.initial}
+                                      onSave={handleSaveMockTest}
+                                      onCancel={() => setMockTestFormState(null)}
+                                      saving={mockTestSaving}
+                                    />
+                                  )}
+                                </div>
+                              );
+                            })}
+                        </div>
+                      )}
+
+                      {mockTestFormState?.moduleId === mod.id &&
+                        !mockTestFormState.testId && (
+                          <div className="border border-blue-300 rounded-xl overflow-hidden">
+                            <div className="p-3 bg-blue-50 text-sm font-semibold text-[#0B2545]">
+                              New Mock Test &mdash; Module {mod.displayOrder}:{" "}
+                              {mod.title}
+                            </div>
+                            <MockTestForm
+                              initial={mockTestFormState.initial}
+                              onSave={handleSaveMockTest}
+                              onCancel={() => setMockTestFormState(null)}
+                              saving={mockTestSaving}
                             />
                           </div>
                         )}

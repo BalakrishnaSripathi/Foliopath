@@ -93,12 +93,31 @@ export const resetStudentPasswordByAdmin = (
 
 // ==================== ENROLLMENT (SUPER_ADMIN) ====================
 
-export const adminEnrollStudent = (studentId, courseId) => {
-  return api.post("/api/super-admin/enrollments", { studentId, courseId });
+export const adminEnrollStudent = (studentId, courseId, options = {}) => {
+  const payload = { studentId, courseId };
+  if (options.amountPaid != null) payload.amountPaid = options.amountPaid;
+  if (options.discountAmount != null) payload.discountAmount = options.discountAmount;
+  if (options.discountPercentage != null) payload.discountPercentage = options.discountPercentage;
+  if (options.paymentMethod) payload.paymentMethod = options.paymentMethod;
+  if (options.remarks) payload.remarks = options.remarks;
+  return api.post("/api/super-admin/enrollments", payload);
 };
 
 export const getStudentEnrollments = (studentId) => {
   return api.get(`/api/super-admin/students/${studentId}/enrollments`);
+};
+
+export const adminUnenrollStudent = (studentId, courseId, refundAmount) => {
+  return api.post("/api/super-admin/enrollments/unenroll", {
+    studentId,
+    courseId,
+    refundAmount,
+  });
+};
+
+// Payment info (amount paid at enrollment, course fee, discount) per course
+export const getStudentPayments = (studentId) => {
+  return api.get(`/api/super-admin/students/${studentId}/payments`);
 };
 
 // ==================== KIT ENROLLMENT (SUPER_ADMIN) ====================

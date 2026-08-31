@@ -230,6 +230,7 @@ export default function AllStudentsTable({ isSuperAdmin, onResetPassword }) {
           student={enrollStudent}
           onClose={() => setEnrollStudent(null)}
           onSuccess={loadStudents}
+          isSuperAdmin={isSuperAdmin}
         />
       )}
 
