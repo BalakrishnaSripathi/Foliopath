@@ -34,9 +34,9 @@ const emptyItem = (displayOrder) => ({
 });
 
 const emptyForm = (displayOrder) => ({
-  lessonCode: "", title: "", description: "", lessonType: "TEXT_ONLY", contentType: "TEXT",
+  lessonCode: "", title: "", description: "", lessonType: "TEXT_AND_CODE", contentType: "TEXT_AND_CODE",
   content: "", codeContent: "", codeLanguage: "javascript", documentUrl: "",
-  displayOrder, estimatedMinutes: 10, items: [],
+  displayOrder, estimatedMinutes: 15, items: [],
 });
 
 function LessonItemsEditor({ items, onChange }) {
@@ -267,10 +267,10 @@ export default function CourseContentModal({ courseId, onClose }) {
       lessonId: lesson.id,
       initial: {
         lessonCode: lesson.lessonCode || "", title: lesson.title || "", description: lesson.description || "",
-        lessonType: lesson.lessonType || "TEXT_ONLY", contentType: lesson.contentType || "TEXT",
+        lessonType: lesson.lessonType || "TEXT_AND_CODE", contentType: lesson.contentType || "TEXT_AND_CODE",
         content: lesson.content || "", codeContent: lesson.codeContent || "",
         codeLanguage: lesson.codeLanguage || "javascript", documentUrl: lesson.documentUrl || "",
-        displayOrder: lesson.displayOrder || 1, estimatedMinutes: lesson.estimatedMinutes || 10,
+        displayOrder: lesson.displayOrder || 1, estimatedMinutes: lesson.estimatedMinutes || 15,
         items: (lesson.items || []).map((it, i) => ({
           title: it.title || "", description: it.description || "", content: it.content || "",
           codeContent: it.codeContent || "", codeLanguage: it.codeLanguage || "javascript",

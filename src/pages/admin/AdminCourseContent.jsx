@@ -17,11 +17,14 @@ import {
   getCourseById,
   getModules,
   addModule,
+  updateModule,
   deleteModule,
   getLessons,
   addLesson,
   updateLesson,
   deleteLesson,
+  reorderModules,
+  reorderLessons,
 } from "../../api/courseService";
 import {
   getMockTests,
@@ -31,6 +34,7 @@ import {
   OPTION_LABELS,
 } from "../../api/mockTestService";
 import RichTextEditor from "../../components/RichTextEditor";
+import useListMovable from "../../hooks/useListMovable";
 
 const LESSON_TYPES = ["CONCEPT", "TEXT_ONLY", "CODE_ONLY", "TEXT_AND_CODE"];
 const CONTENT_TYPES = ["TEXT", "CODE", "TEXT_AND_CODE", "DOCUMENT", "TEXT_AND_DOCUMENT"];
@@ -61,14 +65,14 @@ const emptyForm = (displayOrder) => ({
   lessonCode: "",
   title: "",
   description: "",
-  lessonType: "TEXT_ONLY",
-  contentType: "TEXT",
+  lessonType: "TEXT_AND_CODE",
+  contentType: "TEXT_AND_CODE",
   content: "",
   codeContent: "",
   codeLanguage: "javascript",
   documentUrl: "",
   displayOrder,
-  estimatedMinutes: 10,
+  estimatedMinutes: 15,
   items: [],
 });
 
@@ -690,7 +694,6 @@ export default function AdminCourseContent() {
   const location = useLocation();
   const successMessage = location.state?.message;
   const [course, setCourse] = useState(null);
-  const [modules, setModules] = useState([]);
   const [lessonsByModule, setLessonsByModule] = useState({});
   const [mockTestsByModule, setMockTestsByModule] = useState({});
   const [loading, setLoading] = useState(true);
@@ -701,6 +704,15 @@ export default function AdminCourseContent() {
   const [mockTestSaving, setMockTestSaving] = useState(false);
   const [newModuleTitle, setNewModuleTitle] = useState("");
   const [showAddModule, setShowAddModule] = useState(false);
+  const [movingModuleId, setMovingModuleId] = useState(null);
+  const [movingLessonKey, setMovingLessonKey] = useState(null);
+  const [editingModuleId, setEditingModuleId] = useState(null);
+  const [editingModuleTitle, setEditingModuleTitle] = useState("");
+
+  const modulesMovable = useListMovable([], {
+    movingId: movingModuleId,
+    setMovingId: setMovingModuleId,
+  });
 
   useEffect(() => {
     loadData();
@@ -713,11 +725,82 @@ export default function AdminCourseContent() {
         getModules(courseId),
       ]);
       setCourse(courseRes.data);
-      setModules(modulesRes.data);
+      modulesMovable.setItems(modulesRes.data);
     } catch (err) {
       console.error("Failed to load:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleMoveModule = async (moduleId, dir) => {
+    const moved = dir === -1 ? modulesMovable.moveUp(moduleId) : modulesMovable.moveDown(moduleId);
+    if (!moved) return;
+    setMovingModuleId(moduleId);
+    try {
+      await reorderModules(courseId, moved);
+    } catch (err) {
+      console.error("Failed to reorder modules:", err);
+      const { data } = await getModules(courseId);
+      modulesMovable.setItems(data);
+    } finally {
+      setMovingModuleId(null);
+    }
+  };
+
+  const handleMoveLesson = async (moduleId, lessonId, dir) => {
+    const current = (lessonsByModule[moduleId] || []).slice().sort(
+      (a, b) => (a.displayOrder || 0) - (b.displayOrder || 0)
+    );
+    const idx = current.findIndex((l) => l.id === lessonId);
+    const target = idx + dir;
+    if (idx < 0 || target < 0 || target >= current.length) return;
+    [current[idx], current[target]] = [current[target], current[idx]];
+    const reindexed = current.map((l, i) => ({ ...l, displayOrder: i + 1 }));
+    setLessonsByModule((prev) => ({ ...prev, [moduleId]: reindexed }));
+    setMovingLessonKey(`${moduleId}:${lessonId}`);
+    try {
+      await reorderLessons(moduleId, reindexed);
+    } catch (err) {
+      console.error("Failed to reorder lessons:", err);
+      await loadLessons(moduleId);
+    } finally {
+      setMovingLessonKey(null);
+    }
+  };
+
+  const startEditModule = (mod) => {
+    setEditingModuleId(mod.id);
+    setEditingModuleTitle(mod.title || "");
+  };
+
+  const cancelEditModule = () => {
+    setEditingModuleId(null);
+    setEditingModuleTitle("");
+  };
+
+  const saveModuleTitle = async (mod) => {
+    const title = editingModuleTitle.trim();
+    if (!title || title === mod.title) {
+      cancelEditModule();
+      return;
+    }
+    try {
+      await updateModule(courseId, mod.id, {
+        moduleCode: mod.moduleCode,
+        title,
+        description: mod.description || "",
+        displayOrder: mod.displayOrder,
+      });
+      modulesMovable.setItems(
+        modulesMovable.list.map((m) =>
+          m.id === mod.id ? { ...m, title } : m
+        )
+      );
+    } catch (err) {
+      console.error("Failed to rename module:", err);
+    } finally {
+      cancelEditModule();
     }
   };
 
@@ -763,12 +846,12 @@ export default function AdminCourseContent() {
     try {
       await addModule(courseId, {
         title: newModuleTitle,
-        displayOrder: modules.length + 1,
+        displayOrder: modulesMovable.list.length + 1,
       });
       setNewModuleTitle("");
       setShowAddModule(false);
       const { data } = await getModules(courseId);
-      setModules(data);
+      modulesMovable.setItems(data);
       const created = [...data].sort(
         (a, b) => (b.displayOrder || 0) - (a.displayOrder || 0)
       )[0];
@@ -786,7 +869,7 @@ export default function AdminCourseContent() {
     if (!confirm("Delete this module and all its lessons?")) return;
     try {
       await deleteModule(courseId, moduleId);
-      setModules(modules.filter((m) => m.id !== moduleId));
+      modulesMovable.setItems(modulesMovable.list.filter((m) => m.id !== moduleId));
       setLessonsByModule((prev) => {
         const next = { ...prev };
         delete next[moduleId];
@@ -821,14 +904,14 @@ export default function AdminCourseContent() {
         lessonCode: lesson.lessonCode || "",
         title: lesson.title || "",
         description: lesson.description || "",
-        lessonType: lesson.lessonType || "TEXT_ONLY",
-        contentType: lesson.contentType || "TEXT",
+        lessonType: lesson.lessonType || "TEXT_AND_CODE",
+        contentType: lesson.contentType || "TEXT_AND_CODE",
         content: lesson.content || "",
         codeContent: lesson.codeContent || "",
         codeLanguage: lesson.codeLanguage || "javascript",
         documentUrl: lesson.documentUrl || "",
         displayOrder: lesson.displayOrder || 1,
-        estimatedMinutes: lesson.estimatedMinutes || 10,
+        estimatedMinutes: lesson.estimatedMinutes || 15,
         items: (lesson.items || []).map((it, i) => ({
           title: it.title || "",
           description: it.description || "",
@@ -977,7 +1060,7 @@ export default function AdminCourseContent() {
               Course Content
             </h1>
             <p className="text-sm text-slate-500 mt-1">
-              {course?.title} &middot; {modules.length} modules
+              {course?.title} &middot; {modulesMovable.list.length} modules
             </p>
           </div>
           <button
@@ -1025,8 +1108,7 @@ export default function AdminCourseContent() {
         )}
 
         <div className="space-y-4">
-          {modules
-            .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0))
+          {modulesMovable.list
             .map((mod) => {
               const lessons = lessonsByModule[mod.id];
               const mockTests = mockTestsByModule[mod.id];
@@ -1072,6 +1154,32 @@ export default function AdminCourseContent() {
                         <Plus className="w-3 h-3" />
                         Lesson
                       </button>
+                      <span className="text-slate-300 text-xs">|</span>
+                      <button
+                        onClick={() => startEditModule(mod)}
+                        title="Rename module"
+                        className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-slate-100 rounded-lg transition-colors"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleMoveModule(mod.id, -1)}
+                          disabled={!modulesMovable.canMoveUp(mod.id) || movingModuleId !== null}
+                          title="Move module up"
+                          className="p-1.5 text-slate-500 hover:text-[#00A86B] hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed"
+                        >
+                          <ArrowUp className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleMoveModule(mod.id, 1)}
+                          disabled={!modulesMovable.canMoveDown(mod.id) || movingModuleId !== null}
+                          title="Move module down"
+                          className="p-1.5 text-slate-500 hover:text-[#00A86B] hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed"
+                        >
+                          <ArrowDown className="w-4 h-4" />
+                        </button>
+                      </div>
                       <button
                         onClick={() => handleDeleteModule(mod.id)}
                         className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
@@ -1080,6 +1188,36 @@ export default function AdminCourseContent() {
                       </button>
                     </div>
                   </div>
+
+                  {editingModuleId === mod.id && (
+                    <div className="p-4 bg-white border-b border-slate-100 flex items-center gap-3">
+                      <input
+                        type="text"
+                        value={editingModuleTitle}
+                        onChange={(e) => setEditingModuleTitle(e.target.value)}
+                        placeholder="Module title"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") saveModuleTitle(mod);
+                          if (e.key === "Escape") cancelEditModule();
+                        }}
+                        className="flex-1 px-4 py-2 text-sm bg-slate-50 rounded-xl border border-slate-200 focus:border-[#00A86B] focus:outline-none"
+                      />
+                      <button
+                        onClick={() => saveModuleTitle(mod)}
+                        disabled={!editingModuleTitle.trim()}
+                        className="bg-[#00A86B] text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-[#008f5a] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={cancelEditModule}
+                        className="text-slate-400 hover:text-slate-600 p-2"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
 
                   {expandedModule === mod.id && (
                     <div className="p-4 space-y-3">
@@ -1096,11 +1234,11 @@ export default function AdminCourseContent() {
                       )}
 
                       {lessons &&
-                        lessons
+                        [...lessons]
                           .sort(
                             (a, b) => (a.displayOrder || 0) - (b.displayOrder || 0)
                           )
-                          .map((lesson) => {
+                          .map((lesson, lessonIndex) => {
                             const isEditing =
                               formState?.lessonId === lesson.id;
 
@@ -1130,6 +1268,22 @@ export default function AdminCourseContent() {
                                     </span>
                                   </div>
                                   <div className="flex items-center gap-1 flex-shrink-0">
+                                    <button
+                                      onClick={() => handleMoveLesson(mod.id, lesson.id, -1)}
+                                      disabled={lessonIndex === 0 || movingLessonKey !== null}
+                                      title="Move lesson up"
+                                      className="p-1 text-slate-400 hover:text-[#00A86B] disabled:opacity-30 disabled:cursor-not-allowed"
+                                    >
+                                      <ArrowUp className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleMoveLesson(mod.id, lesson.id, 1)}
+                                      disabled={lessonIndex === (lessons?.length || 0) - 1 || movingLessonKey !== null}
+                                      title="Move lesson down"
+                                      className="p-1 text-slate-400 hover:text-[#00A86B] disabled:opacity-30 disabled:cursor-not-allowed"
+                                    >
+                                      <ArrowDown className="w-3.5 h-3.5" />
+                                    </button>
                                     <button
                                       onClick={() => openEditLesson(mod, lesson)}
                                       className="text-xs font-semibold text-blue-600 hover:underline px-2 flex items-center gap-1"
@@ -1270,7 +1424,7 @@ export default function AdminCourseContent() {
             })}
         </div>
 
-        {modules.length === 0 && !showAddModule && (
+        {modulesMovable.list.length === 0 && !showAddModule && (
           <div className="text-center py-16 bg-white rounded-2xl border border-slate-100">
             <p className="text-slate-500 mb-4">
               No modules yet. Start building your course curriculum.
