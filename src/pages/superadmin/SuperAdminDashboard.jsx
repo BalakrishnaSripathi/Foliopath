@@ -223,25 +223,33 @@ const TooltipBar = ({ active, payload, label }) => {
 
 // ─── Overview Section ─────────────────────────────────────────────────────────
 
-function OverviewSection({ stats, courses }) {
+function OverviewSection({ stats, courses, kits }) {
   const totalRevenue = stats?.totalRevenue || 0;
   const revenueLine = (stats?.monthlyRevenue || []).map((r) => ({
     month: r.month,
     revenue: Number(r.revenue) || 0,
   }));
-  const enrollmentsData = stats?.monthlyEnrollments || [];
-  const totalEnrollments = enrollmentsData.reduce((s, r) => s + r.count, 0);
+  const courseData = stats?.monthlyCourseEnrollments || stats?.monthlyEnrollments || [];
+  const kitData = stats?.monthlyKitEnrollments || [];
+  const totalCourseEnrollments = courseData.reduce((s, r) => s + r.count, 0);
+  const totalKitEnrollments = kitData.reduce((s, r) => s + r.count, 0);
 
-  const STAT_CARDS = [
-    { label: "Total Users", value: stats?.totalUsers || 0, color: "#0B2545", bg: "bg-blue-50" },
-    { label: "Total Students", value: stats?.totalStudents || 0, color: "#00A86B", bg: "bg-green-50" },
-    { label: "Total Staff", value: stats?.totalStaff || 0, color: "#f59e0b", bg: "bg-amber-50" },
-    { label: "Super Admins", value: stats?.totalSuperAdmins || 0, color: "#f472b6", bg: "bg-pink-50" },
-    { label: "Total Courses", value: courses.length, color: "#0B2545", bg: "bg-slate-100" },
-    { label: "Published", value: courses.filter((c) => c.status === "PUBLISHED").length, color: "#00A86B", bg: "bg-green-50" },
-    { label: "Drafts", value: courses.filter((c) => c.status !== "PUBLISHED").length, color: "#94a3b8", bg: "bg-slate-50" },
-    { label: "Free Courses", value: courses.filter((c) => !c.price || c.price === 0).length, color: "#818cf8", bg: "bg-indigo-50" },
-  ];
+  const allMonths = [...new Set([
+    ...courseData.map((r) => r.month),
+    ...kitData.map((r) => r.month),
+  ])];
+  const courseMap = new Map(courseData.map((r) => [r.month, r.count]));
+  const kitMap = new Map(kitData.map((r) => [r.month, r.count]));
+  const mergedData = allMonths.map((month) => ({
+    month,
+    Courses: courseMap.get(month) || 0,
+    Kits: kitMap.get(month) || 0,
+  }));
+
+  const publishedCourses = courses.filter((c) => c.status === "PUBLISHED").length;
+  const draftCourses = courses.filter((c) => c.status !== "PUBLISHED").length;
+  const publishedKits = kits.filter((k) => k.status === "PUBLISHED").length;
+  const draftKits = kits.filter((k) => k.status !== "PUBLISHED").length;
 
   return (
     <div>
@@ -251,15 +259,73 @@ function OverviewSection({ stats, courses }) {
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-        {STAT_CARDS.map((s) => (
-          <div
-            key={s.label}
-            className="rounded-2xl p-4 flex flex-col gap-2 transition-transform duration-200 hover:-translate-y-0.5 bg-white border border-slate-100 shadow-sm"
-          >
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">{s.label}</span>
-            <span className="text-4xl font-extrabold" style={{ color: s.color }}>{s.value}</span>
+        {/* Total Users */}
+        <div className="rounded-2xl p-4 flex flex-col gap-2 transition-transform duration-200 hover:-translate-y-0.5 bg-white border border-slate-100 shadow-sm">
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Users</span>
+          <span className="text-4xl font-extrabold text-[#0B2545]">{stats?.totalUsers || 0}</span>
+        </div>
+
+        {/* Total Students */}
+        <div className="rounded-2xl p-4 flex flex-col gap-2 transition-transform duration-200 hover:-translate-y-0.5 bg-white border border-slate-100 shadow-sm">
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Students</span>
+          <span className="text-4xl font-extrabold text-[#00A86B]">{stats?.totalStudents || 0}</span>
+        </div>
+
+        {/* Total Staff */}
+        <div className="rounded-2xl p-4 flex flex-col gap-2 transition-transform duration-200 hover:-translate-y-0.5 bg-white border border-slate-100 shadow-sm">
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Staff</span>
+          <span className="text-4xl font-extrabold text-[#f59e0b]">{stats?.totalStaff || 0}</span>
+        </div>
+
+        {/* Super Admins */}
+        <div className="rounded-2xl p-4 flex flex-col gap-2 transition-transform duration-200 hover:-translate-y-0.5 bg-white border border-slate-100 shadow-sm">
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Super Admins</span>
+          <span className="text-4xl font-extrabold text-[#f472b6]">{stats?.totalSuperAdmins || 0}</span>
+        </div>
+
+        {/* Total Courses with Published/Draft */}
+        <div className="rounded-2xl p-4 flex flex-col gap-2 transition-transform duration-200 hover:-translate-y-0.5 bg-white border border-slate-100 shadow-sm">
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Courses</span>
+          <span className="text-4xl font-extrabold text-[#0B2545]">{courses.length}</span>
+          <div className="flex items-center gap-3 mt-1">
+            <span className="flex items-center gap-1.5 text-xs font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
+              {publishedCourses} Published
+            </span>
+            <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-400 inline-block" />
+              {draftCourses} Draft
+            </span>
           </div>
-        ))}
+        </div>
+
+        {/* Total Interview Kits with Published/Draft */}
+        <div className="rounded-2xl p-4 flex flex-col gap-2 transition-transform duration-200 hover:-translate-y-0.5 bg-white border border-slate-100 shadow-sm">
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Interview Kits</span>
+          <span className="text-4xl font-extrabold text-[#f59e0b]">{kits.length}</span>
+          <div className="flex items-center gap-3 mt-1">
+            <span className="flex items-center gap-1.5 text-xs font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
+              {publishedKits} Published
+            </span>
+            <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-400 inline-block" />
+              {draftKits} Draft
+            </span>
+          </div>
+        </div>
+
+        {/* Free Courses */}
+        <div className="rounded-2xl p-4 flex flex-col gap-2 transition-transform duration-200 hover:-translate-y-0.5 bg-white border border-slate-100 shadow-sm">
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Free Courses</span>
+          <span className="text-4xl font-extrabold text-[#818cf8]">{courses.filter((c) => !c.price || c.price === 0).length}</span>
+        </div>
+
+        {/* Free Kits */}
+        <div className="rounded-2xl p-4 flex flex-col gap-2 transition-transform duration-200 hover:-translate-y-0.5 bg-white border border-slate-100 shadow-sm">
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Free Kits</span>
+          <span className="text-4xl font-extrabold text-[#818cf8]">{kits.filter((k) => !k.price || k.price === 0).length}</span>
+        </div>
       </div>
 
       <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -296,22 +362,26 @@ function OverviewSection({ stats, courses }) {
           <div className="flex items-start justify-between mb-5">
             <div>
               <div className="text-xs font-mono uppercase tracking-wider text-slate-400 mb-1">Course Enrollments</div>
-              <div className="text-3xl font-extrabold text-[#0B2545]">{totalEnrollments}</div>
+              <div className="text-3xl font-extrabold text-[#0B2545]">{totalCourseEnrollments}</div>
               <div className="text-xs text-slate-400 mt-0.5">Across all courses</div>
             </div>
-            <div className="flex items-center gap-3 text-xs font-mono">
+            <div className="flex flex-col items-end gap-1 text-xs font-mono">
               <span className="flex items-center gap-1.5 text-[#0B2545]">
-                <span className="inline-block w-2.5 h-2.5 rounded-sm bg-[#0B2545]" /> Enroll It All
+                <span className="inline-block w-2.5 h-2.5 rounded-sm bg-[#0B2545]" /> Courses
+              </span>
+              <span className="flex items-center gap-1.5 text-[#f59e0b]">
+                <span className="inline-block w-2.5 h-2.5 rounded-sm bg-[#f59e0b]" /> Kits
               </span>
             </div>
           </div>
           <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={enrollmentsData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }} barCategoryGap="35%">
+            <BarChart data={mergedData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }} barCategoryGap="35%">
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
               <XAxis dataKey="month" tick={{ fill: "#94a3b8", fontSize: 11 }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fill: "#94a3b8", fontSize: 11 }} axisLine={false} tickLine={false} />
               <Tooltip content={<TooltipBar />} cursor={{ fill: "#f8fafc" }} />
-              <Bar dataKey="count" fill="#0B2545" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="Courses" fill="#0B2545" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="Kits" fill="#f59e0b" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -319,9 +389,9 @@ function OverviewSection({ stats, courses }) {
 
       <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
-          { icon: "👥", label: "Avg. per Course", value: `${courses.length ? (totalEnrollments / courses.length).toFixed(1) : 0} students`, color: "#0B2545" },
+          { icon: "👥", label: "Avg. per Course", value: `${courses.length ? (totalCourseEnrollments / courses.length).toFixed(1) : 0} students`, color: "#0B2545" },
+          { icon: "📦", label: "Kit Enrollments", value: `${totalKitEnrollments}`, color: "#f59e0b" },
           { icon: "💰", label: "Avg. Revenue / Mo", value: `₹${Math.round(totalRevenue / (revenueLine.length || 1)).toLocaleString("en-IN")}`, color: "#00A86B" },
-          { icon: "📈", label: "Peak Month", value: "Aug 2026", color: "#f59e0b" },
         ].map((s) => (
           <div key={s.label} className="rounded-2xl p-4 flex items-center gap-4 bg-white border border-slate-100 shadow-sm">
             <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-slate-50">
@@ -550,18 +620,27 @@ function ContactsSection() {
 // ─── Enrollments Section ──────────────────────────────────────────────────────
 
 function EnrollmentsSection({ stats }) {
-  const enrollmentsData = stats?.monthlyEnrollments || [];
-  const total = enrollmentsData.reduce((s, r) => s + r.count, 0);
+  const courseData = stats?.monthlyCourseEnrollments || stats?.monthlyEnrollments || [];
+  const kitData = stats?.monthlyKitEnrollments || [];
+  const totalCourse = courseData.reduce((s, r) => s + r.count, 0);
+  const totalKit = kitData.reduce((s, r) => s + r.count, 0);
+  const totalCombined = totalCourse + totalKit;
+  const thisMonthCourse = courseData.length > 0 ? courseData[courseData.length - 1].count : 0;
+  const thisMonthKit = kitData.length > 0 ? kitData[kitData.length - 1].count : 0;
+  const thisMonthCombined = thisMonthCourse + thisMonthKit;
+
   const statCards = [
-    { label: "Total Enrollments", value: total, color: "#0B2545" },
-    { label: "This Month", value: enrollmentsData.length > 0 ? enrollmentsData[enrollmentsData.length - 1].count : 0, color: "#60a5fa" },
+    { label: "Total Enrollments in Course", value: totalCourse, color: "#0B2545" },
+    { label: "Total Enrollments in Interview Kit", value: totalKit, color: "#f59e0b" },
+    { label: "Total Enrollments (Kits+Courses)", value: totalCombined, color: "#00A86B" },
+    { label: "Total This Month (Kits+Courses)", value: thisMonthCombined, color: "#f472b6" },
   ];
 
   return (
     <div>
       <div className="mb-8">
         <h1 className="text-2xl font-extrabold text-[#0B2545] mb-1">Enrollments</h1>
-        <p className="text-sm text-slate-500">Monthly student enrollment across all courses</p>
+        <p className="text-sm text-slate-500">Monthly student enrollment across courses and interview kits</p>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
         {statCards.map((s) => (
@@ -571,24 +650,45 @@ function EnrollmentsSection({ stats }) {
           </div>
         ))}
       </div>
-      <div className="rounded-2xl p-5 bg-white border border-slate-100 shadow-sm">
+
+      {/* Monthly Course Enrollments Graph */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="rounded-2xl p-5 bg-white border border-slate-100 shadow-sm h-full">
         <div className="flex items-center justify-between mb-5">
-          <h3 className="font-bold text-[#0B2545]">Monthly Breakdown</h3>
-          <div className="flex gap-3 text-xs font-mono">
-            <span className="flex items-center gap-1.5 text-[#0B2545]">
-              <span className="w-2.5 h-2.5 rounded-sm inline-block bg-[#0B2545]" /> Enroll It All
-            </span>
-          </div>
+          <h3 className="font-bold text-[#0B2545]">Monthly Course Enrollments</h3>
+          <span className="flex items-center gap-1.5 text-xs font-mono text-[#0B2545]">
+            <span className="w-2.5 h-2.5 rounded-sm inline-block bg-[#0B2545]" /> Courses
+          </span>
         </div>
         <ResponsiveContainer width="100%" height={240}>
-          <BarChart data={enrollmentsData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }} barCategoryGap="30%">
+          <BarChart data={courseData.map((r) => ({ month: r.month, Courses: r.count }))} margin={{ top: 4, right: 4, left: -20, bottom: 0 }} barCategoryGap="30%">
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
             <XAxis dataKey="month" tick={{ fill: "#94a3b8", fontSize: 11 }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fill: "#94a3b8", fontSize: 11 }} axisLine={false} tickLine={false} />
             <Tooltip content={<TooltipBar />} cursor={{ fill: "#f8fafc" }} />
-            <Bar dataKey="count" fill="#0B2545" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="Courses" fill="#0B2545" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
+      </div>
+
+      {/* Monthly Kit Enrollments Graph */}
+      <div className="rounded-2xl p-5 bg-white border border-slate-100 shadow-sm h-full">
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="font-bold text-[#0B2545]">Monthly Kit Enrollments</h3>
+          <span className="flex items-center gap-1.5 text-xs font-mono text-[#f59e0b]">
+            <span className="w-2.5 h-2.5 rounded-sm inline-block bg-[#f59e0b]" /> Kits
+          </span>
+        </div>
+        <ResponsiveContainer width="100%" height={240}>
+          <BarChart data={kitData.map((r) => ({ month: r.month, Kits: r.count }))} margin={{ top: 4, right: 4, left: -20, bottom: 0 }} barCategoryGap="30%">
+            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+            <XAxis dataKey="month" tick={{ fill: "#94a3b8", fontSize: 11 }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fill: "#94a3b8", fontSize: 11 }} axisLine={false} tickLine={false} />
+            <Tooltip content={<TooltipBar />} cursor={{ fill: "#f8fafc" }} />
+            <Bar dataKey="Kits" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+        </div>
       </div>
     </div>
   );
@@ -598,10 +698,13 @@ function EnrollmentsSection({ stats }) {
 
 function PaymentsSection({ stats }) {
   const transactions = stats?.transactions || [];
-  const totalCollected = Number(stats?.totalRevenue) || 0;
-  const successCount = transactions.filter((t) => t.status === "SUCCESS").length;
-  const refundCount = transactions.filter((t) => t.status === "REFUNDED").length;
-  const pendingCount = transactions.filter(
+  const kitTransactions = stats?.kitTransactions || [];
+  const allTransactions = [...transactions.map((t) => ({ ...t, type: t.type || "Course" })), ...kitTransactions.map((t) => ({ ...t, type: "Interview Kit" }))];
+  allTransactions.sort((a, b) => new Date(b.date) - new Date(a.date));
+  const totalCollected = (Number(stats?.totalRevenue) || 0) + (Number(stats?.kitRevenue) || 0);
+  const successCount = allTransactions.filter((t) => t.status === "SUCCESS").length;
+  const refundCount = allTransactions.filter((t) => t.status === "REFUNDED").length;
+  const pendingCount = allTransactions.filter(
     (t) => t.status !== "SUCCESS" && t.status !== "REFUNDED"
   ).length;
   return (
@@ -623,13 +726,14 @@ function PaymentsSection({ stats }) {
           </div>
         ))}
       </div>
-      <SectionHeader title="Transactions" count={transactions.length} />
+      <SectionHeader title="Transactions" count={allTransactions.length} />
       <TableWrapper>
         <thead>
           <tr>
             <Th>Txn ID</Th>
             <Th>Student</Th>
-            <Th>Course</Th>
+            <Th>Type</Th>
+            <Th>Item</Th>
             <Th>Amount</Th>
             <Th>Method</Th>
             <Th>Date</Th>
@@ -637,14 +741,14 @@ function PaymentsSection({ stats }) {
           </tr>
         </thead>
         <tbody>
-          {transactions.length === 0 ? (
+          {allTransactions.length === 0 ? (
             <tr>
-              <td colSpan={7} className="px-4 py-8 text-center text-sm text-slate-400">
+              <td colSpan={8} className="px-4 py-8 text-center text-sm text-slate-400">
                 No transactions yet
               </td>
             </tr>
           ) : (
-            transactions.map((t) => (
+            allTransactions.map((t) => (
               <tr key={t.id} className="hover:bg-slate-50 transition-colors">
                 <Td mono>{t.txnId}</Td>
                 <Td>
@@ -653,7 +757,16 @@ function PaymentsSection({ stats }) {
                     <span className="text-sm text-[#0B2545] font-semibold">{t.studentName}</span>
                   </div>
                 </Td>
-                <Td>{t.courseTitle}</Td>
+                <Td>
+                  <span className={`text-xs px-2 py-0.5 rounded font-semibold ${
+                    t.type === "Interview Kit"
+                      ? "bg-amber-50 text-amber-600"
+                      : "bg-blue-50 text-blue-600"
+                  }`}>
+                    {t.type === "Interview Kit" ? "Kit" : "Course"}
+                  </span>
+                </Td>
+                <Td>{t.courseTitle || t.kitName || "-"}</Td>
                 <Td mono>
                   {t.status === "REFUNDED" ? (
                     <span className="font-bold text-red-500">-₹{Math.abs(Number(t.amount)).toLocaleString("en-IN")}</span>
@@ -679,8 +792,8 @@ function PaymentsSection({ stats }) {
 
 // ─── Reports Section ──────────────────────────────────────────────────────────
 
-function ReportsSection({ stats }) {
-  const totalRevenue = stats?.totalRevenue || 0;
+function ReportsSection({ stats, courses, kits }) {
+  const totalRevenue = (Number(stats?.totalRevenue) || 0) + (Number(stats?.kitRevenue) || 0);
   const revenueLine = (stats?.monthlyRevenue || []).map((r) => ({
     month: r.month,
     revenue: Number(r.revenue) || 0,
@@ -688,6 +801,8 @@ function ReportsSection({ stats }) {
   const avg = revenueLine.length
     ? Math.round(totalRevenue / revenueLine.length)
     : Math.round(totalRevenue);
+
+  const totalTransactions = (stats?.transactions?.length || 0) + (stats?.kitTransactions?.length || 0);
   return (
     <div>
       <div className="mb-8">
@@ -698,8 +813,10 @@ function ReportsSection({ stats }) {
         {[
           { label: "Total Revenue", value: `₹${Number(totalRevenue).toLocaleString("en-IN")}`, change: "", up: true, icon: "💰" },
           { label: "Active Students", value: String(stats?.activeStudents || 0), change: "", up: true, icon: "🎓" },
-          { label: "Published Courses", value: String(stats?.publishedCourses || 0), change: "", up: true, icon: "📘" },
-          { label: "Total Transactions", value: String(stats?.transactions?.length || 0), change: "", up: true, icon: "💳" },
+          { label: "Published Courses", value: String(stats?.publishedCourses || courses?.filter((c) => c.status === "PUBLISHED").length || 0), change: "", up: true, icon: "📘" },
+          { label: "Published Kits", value: String(stats?.publishedKits || kits?.filter((k) => k.status === "PUBLISHED").length || 0), change: "", up: true, icon: "💼" },
+          { label: "Total Transactions", value: String(totalTransactions), change: "", up: true, icon: "💳" },
+          { label: "Kit Revenue", value: `₹${Number(stats?.kitRevenue || 0).toLocaleString("en-IN")}`, change: "", up: true, icon: "📦" },
         ].map((r) => (
           <div key={r.label} className="rounded-2xl p-5 flex flex-col gap-3 bg-white border border-slate-100 shadow-sm">
             <div className="flex items-center justify-between">
@@ -1245,7 +1362,7 @@ export default function CombinedDashboard() {
   const renderSection = () => {
     switch (active) {
       case "overview":
-        return <OverviewSection stats={stats} courses={courses} />;
+        return <OverviewSection stats={stats} courses={courses} kits={kits} />;
       case "staff":
         return (
           <StaffSection
@@ -1283,7 +1400,7 @@ export default function CombinedDashboard() {
       case "payments":
         return <PaymentsSection stats={stats} />;
       case "reports":
-        return <ReportsSection stats={stats} />;
+        return <ReportsSection stats={stats} courses={courses} kits={kits} />;
       case "interview":
         return (
           <InterviewKitsSection
@@ -1299,7 +1416,7 @@ export default function CombinedDashboard() {
       case "notifications":
         return <NotificationsSection contactCount={0} />;
       default:
-        return <OverviewSection stats={stats} courses={courses} />;
+        return <OverviewSection stats={stats} courses={courses} kits={kits} />;
     }
   };
 

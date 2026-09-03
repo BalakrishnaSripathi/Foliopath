@@ -122,12 +122,30 @@ export const getStudentPayments = (studentId) => {
 
 // ==================== KIT ENROLLMENT (SUPER_ADMIN) ====================
 
-export const adminEnrollStudentInKit = (studentId, kitId) => {
-  return api.post("/api/super-admin/kit-enrollments", { studentId, kitId });
+export const adminEnrollStudentInKit = (studentId, kitId, options = {}) => {
+  const payload = { studentId, kitId };
+  if (options.amountPaid != null) payload.amountPaid = options.amountPaid;
+  if (options.discountAmount != null) payload.discountAmount = options.discountAmount;
+  if (options.discountPercentage != null) payload.discountPercentage = options.discountPercentage;
+  if (options.paymentMethod) payload.paymentMethod = options.paymentMethod;
+  if (options.remarks) payload.remarks = options.remarks;
+  return api.post("/api/super-admin/kit-enrollments", payload);
 };
 
 export const getStudentKitEnrollments = (studentId) => {
   return api.get(`/api/super-admin/students/${studentId}/kit-enrollments`);
+};
+
+export const adminUnenrollStudentInKit = (studentId, kitId, refundAmount) => {
+  return api.post("/api/super-admin/kit-enrollments/unenroll", {
+    studentId,
+    kitId,
+    refundAmount,
+  });
+};
+
+export const getStudentKitPayments = (studentId) => {
+  return api.get(`/api/super-admin/students/${studentId}/kit-payments`);
 };
 
 // ==================== STUDENT REPORTS (SUPER_ADMIN + STAFF) ====================

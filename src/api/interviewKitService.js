@@ -70,6 +70,7 @@ export const addKitQuestion = (kitId, data) => {
     codeSnippet: data.codeSnippet || "",
     answer: data.answer,
     displayOrder: Number(data.displayOrder) || 0,
+    moduleId: data.moduleId || null,
   });
 };
 
@@ -81,11 +82,44 @@ export const updateKitQuestion = (kitId, questionId, data) => {
     codeSnippet: data.codeSnippet || "",
     answer: data.answer,
     displayOrder: Number(data.displayOrder) || 0,
+    moduleId: data.moduleId || null,
   });
 };
 
 export const deleteKitQuestion = (kitId, questionId) => {
   return api.delete(`/api/interview-kits/${kitId}/questions/${questionId}`);
+};
+
+// ==================== MODULES (ADMIN) ====================
+
+export const getKitModules = (kitId) => {
+  return api.get(`/api/interview-kits/${kitId}/modules`);
+};
+
+export const addKitModule = (kitId, data) => {
+  return api.post(`/api/interview-kits/${kitId}/modules`, {
+    name: data.name,
+    displayOrder: Number(data.displayOrder) || 0,
+  });
+};
+
+export const updateKitModule = (kitId, moduleId, data) => {
+  return api.put(`/api/interview-kits/${kitId}/modules/${moduleId}`, {
+    name: data.name,
+    displayOrder: Number(data.displayOrder) || 0,
+  });
+};
+
+export const deleteKitModule = (kitId, moduleId) => {
+  return api.delete(`/api/interview-kits/${kitId}/modules/${moduleId}`);
+};
+
+export const reorderKitModules = (kitId, modules) => {
+  return api.put(`/api/interview-kits/${kitId}/modules/reorder`, modules);
+};
+
+export const reorderKitQuestions = (kitId, questionIds) => {
+  return api.put(`/api/interview-kits/${kitId}/questions/reorder`, questionIds);
 };
 
 // ==================== STUDENT KIT ENROLLMENT ====================
