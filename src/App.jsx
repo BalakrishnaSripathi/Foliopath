@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import FoliopathLandingPage from "./components/FoliopathLandingPage";
+import AboutUs from "./pages/AboutUs";
+import ContactUsPage from "./pages/ContactUsPage";
 import Register from "./pages/Register";
 import Login from "./pages/Login";
 import VerifyOtp from "./pages/VerifyOtp";
@@ -52,6 +54,8 @@ function App() {
           <Route path="/login" element={<Login />} />
 
           {/* Public course browsing */}
+          <Route path="/about" element={<AboutUs />} />
+          <Route path="/contact" element={<ContactUsPage />} />
           <Route path="/courses" element={<CourseCatalog />} />
           <Route path="/courses/:courseId" element={<CourseDetail />} />
 

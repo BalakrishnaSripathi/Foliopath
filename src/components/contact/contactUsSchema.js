@@ -48,4 +48,10 @@ export const ContactUsSchema = z.object({
     .max(150, { message: "Location must not exceed 150 characters" })
     .optional()
     .or(z.literal("")),
+
+  message: z
+    .string()
+    .trim()
+    .min(10, { message: "Message must be at least 10 characters" })
+    .max(2000, { message: "Message must not exceed 2000 characters" }),
 });

@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from "react-router-dom";
 import Logo from "../common/Logo";
 
 const footerLinks = {
@@ -10,7 +11,7 @@ const footerLinks = {
 export default function Footer() {
   return (
     <footer className="bg-[#0B2545] text-white pt-16 pb-12">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-8 pb-12 border-b border-slate-700/60">
           <div
             data-aos="fade-up"
@@ -36,9 +37,15 @@ export default function Footer() {
               <ul className="space-y-2.5 text-sm text-slate-400">
                 {links.map((link) => (
                   <li key={link}>
-                    <a href="#" className="hover:text-white transition-colors duration-200">
-                      {link}
-                    </a>
+                    {link === "About Us" ? (
+                      <Link to="/about" className="hover:text-white transition-colors duration-200">
+                        {link}
+                      </Link>
+                    ) : (
+                      <a href="#" className="hover:text-white transition-colors duration-200">
+                        {link}
+                      </a>
+                    )}
                   </li>
                 ))}
               </ul>

@@ -1,17 +1,20 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "react-router-dom";
-import { Search, Menu, X, LogOut, User, LayoutDashboard, BookOpen, ShoppingCart, ChevronDown } from "lucide-react";
+import { Menu, X, LogOut, User, LayoutDashboard, BookOpen, ShoppingCart, ChevronDown } from "lucide-react";
 import Logo from "../common/Logo";
 import { useAuth } from "../../context/AuthContext";
-import ContactUsMain from "../contact/ContactUsMain";
 import CartDrawer from "../cart/CartDrawer";
 import { getCart } from "../../api/cartService";
 
-const navLinks = [];
+const navLinks = [
+  { label: "Home", href: "/" },
+  { label: "Courses", href: "/courses" },
+  { label: "About", href: "/about" },
+  { label: "Contact", href: "/contact" },
+];
 
 export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [contactOpen, setContactOpen] = useState(false);
   const [cartCount, setCartCount] = useState(0);
   const [cartOpen, setCartOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
@@ -42,11 +45,6 @@ export default function Header() {
     return () => window.removeEventListener("cart:open", openDrawer);
   }, [isAuthenticated, role]);
 
-  const openContact = () => {
-    setMobileMenuOpen(false);
-    setContactOpen(true);
-  };
-
   const handleLogout = () => {
     logout();
     setMobileMenuOpen(false);
@@ -74,52 +72,26 @@ export default function Header() {
 
         {/* Desktop Nav Links */}
         <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600">
-          {navLinks.map((link, idx) =>
-            link.label === "Contact" ? (
-              <button
-                key={link.label}
-                type="button"
-                onClick={openContact}
-                data-aos="fade-down"
-                data-aos-duration="400"
-                data-aos-delay={idx * 60}
-                className="hover:text-[#0B2545] transition-colors duration-200"
-              >
-                {link.label}
-              </button>
-            ) : (
-              <Link
-                key={link.label}
-                to={link.href.startsWith("/") ? link.href : link.href}
-                data-aos="fade-down"
-                data-aos-duration="400"
-                data-aos-delay={idx * 60}
-                className={`hover:text-[#0B2545] transition-colors duration-200 ${
-                  link.label === "Home"
-                    ? "text-[#00A86B] font-semibold"
-                    : ""
-                }`}
-              >
-                {link.label}
-              </Link>
-            )
-          )}
+          {navLinks.map((link, idx) => (
+            <Link
+              key={link.label}
+              to={link.href}
+              data-aos="fade-down"
+              data-aos-duration="400"
+              data-aos-delay={idx * 60}
+              className={`hover:text-[#0B2545] transition-colors duration-200 ${
+                link.label === "Home"
+                  ? "text-[#00A86B] font-semibold"
+                  : ""
+              }`}
+            >
+              {link.label}
+            </Link>
+          ))}
         </nav>
 
         {/* Search & Actions */}
         <div className="hidden lg:flex items-center gap-4">
-          <div className="relative" data-aos="fade-down" data-aos-duration="400" data-aos-delay="300">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <Link to="/courses">
-              <input
-                type="text"
-                placeholder="Search courses..."
-                className="pl-9 pr-4 py-2 text-sm bg-slate-100 rounded-full border border-transparent focus:border-[#00A86B] focus:bg-white focus:outline-none transition-all duration-200 w-48 focus:w-64 cursor-pointer"
-                readOnly
-              />
-            </Link>
-          </div>
-
           {isAuthenticated ? (
             <>
               {role === "SUPER_ADMIN" && (
@@ -253,29 +225,18 @@ export default function Header() {
       {/* Mobile Dropdown */}
       {mobileMenuOpen && (
         <div className="md:hidden border-b border-slate-200 bg-white px-4 pt-2 pb-6 space-y-3">
-          {navLinks.map((link) =>
-            link.label === "Contact" ? (
-              <button
-                key={link.label}
-                type="button"
-                onClick={openContact}
-                className="block text-left text-base font-medium transition-colors duration-200 text-slate-600"
-              >
-                {link.label}
-              </button>
-            ) : (
-              <Link
-                key={link.label}
-                to={link.href.startsWith("/") ? link.href : link.href}
-                onClick={() => setMobileMenuOpen(false)}
-                className={`block text-base font-medium transition-colors duration-200 ${
-                  link.label === "Home" ? "text-[#00A86B]" : "text-slate-600"
-                }`}
-              >
-                {link.label}
-              </Link>
-            )
-          )}
+          {navLinks.map((link) => (
+            <Link
+              key={link.label}
+              to={link.href}
+              onClick={() => setMobileMenuOpen(false)}
+              className={`block text-base font-medium transition-colors duration-200 ${
+                link.label === "Home" ? "text-[#00A86B]" : "text-slate-600"
+              }`}
+            >
+              {link.label}
+            </Link>
+          ))}
           <div className="pt-4 flex flex-col gap-2">
             {isAuthenticated ? (
               <>
@@ -348,9 +309,6 @@ export default function Header() {
           </div>
         </div>
       )}
-
-      {/* Contact Us dialog */}
-      <ContactUsMain open={contactOpen} onOpenChange={setContactOpen} />
 
       {/* Cart drawer (students) */}
       {isAuthenticated && role === "STUDENT" && (
