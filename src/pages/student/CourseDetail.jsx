@@ -11,12 +11,14 @@ import {
   Lock,
   CheckCircle2,
   ShoppingCart,
+  ExternalLink,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import {
   getCourseById,
   getModules,
   getLessons,
+  getCourseModules,
 } from "../../api/courseService";
 import { getMockTests } from "../../api/mockTestService";
 import {
@@ -42,6 +44,8 @@ export default function CourseDetail() {
   const isStudent = role === "STUDENT";
   const [course, setCourse] = useState(null);
   const [modules, setModules] = useState([]);
+  const [courseLinks, setCourseLinks] = useState([]);
+  const [courseLinkContent, setCourseLinkContent] = useState({});
   const [lessonsByModule, setLessonsByModule] = useState({});
   const [mockTestsByModule, setMockTestsByModule] = useState({});
   const [loading, setLoading] = useState(true);
@@ -77,6 +81,16 @@ export default function CourseDetail() {
       const mods = modulesRes.data;
       setModules(mods);
 
+      let courseLinkList = [];
+      try {
+        const cmRes = await getCourseModules(courseId);
+        courseLinkList = cmRes.data || [];
+        setCourseLinks(courseLinkList);
+      } catch (cmErr) {
+        console.error("Failed to load course modules:", cmErr);
+        setCourseLinks([]);
+      }
+
       if (isAuthenticated && isStudent) {
         try {
           const { data } = await getEnrollment(courseId);
@@ -108,6 +122,48 @@ export default function CourseDetail() {
       console.error("Failed to load course:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadCourseLinkContent = async (courseLink) => {
+    if (courseLinkContent[courseLink.id]) return;
+    const linkedCourseId = courseLink.courseId;
+    try {
+      const { data } = await getModules(linkedCourseId);
+      const linkedMods = data || [];
+      const mapped = await Promise.all(
+        linkedMods.map((m) =>
+          Promise.all([
+            getLessons(m.id)
+              .then(({ data }) => (Array.isArray(data) ? data : []))
+              .catch(() => []),
+            getMockTests(m.id)
+              .then(({ data }) => (Array.isArray(data) ? data : []))
+              .catch(() => []),
+          ]).then(([lessons, tests]) => [m.id, { lessons, mockTests: tests }])
+        )
+      );
+      const lessonsByModule = Object.fromEntries(
+        mapped.map(([id, v]) => [id, v.lessons])
+      );
+      const mockTestsByModule = Object.fromEntries(
+        mapped.map(([id, v]) => [id, v.mockTests])
+      );
+      setCourseLinkContent((prev) => ({
+        ...prev,
+        [courseLink.id]: {
+          modules: linkedMods,
+          lessonsByModule,
+          mockTestsByModule,
+          loaded: true,
+        },
+      }));
+    } catch (err) {
+      console.error("Failed to load linked course content:", err);
+      setCourseLinkContent((prev) => ({
+        ...prev,
+        [courseLink.id]: { modules: [], lessonsByModule: {}, mockTestsByModule: {}, loaded: true, error: true },
+      }));
     }
   };
 
@@ -224,6 +280,10 @@ export default function CourseDetail() {
     (a, b) => (a.displayOrder || 0) - (b.displayOrder || 0)
   );
 
+  const sortedCourseLinks = [...courseLinks].sort(
+    (a, b) => (a.displayOrder || 0) - (b.displayOrder || 0)
+  );
+
   const enrollButtonLabel = !isAuthenticated
     ? "Enroll Now"
     : !isStudent
@@ -259,7 +319,7 @@ export default function CourseDetail() {
               <div className="flex flex-wrap items-center gap-4 text-sm text-slate-300">
                 <span className="flex items-center gap-1">
                   <BookOpen className="w-4 h-4" />
-                  {modules.length} modules &middot; {totalLessons} lessons
+                  {modules.length + sortedCourseLinks.length} modules &middot; {totalLessons} lessons
                 </span>
                 {course.level && (
                   <span className="flex items-center gap-1">
@@ -317,7 +377,7 @@ export default function CourseDetail() {
               <div className="mt-4 space-y-2 text-sm text-slate-600">
                 <div className="flex items-center gap-2">
                   <BookOpen className="w-4 h-4 text-slate-400" />
-                  {modules.length} modules &middot; {totalLessons} lessons
+                  {modules.length + sortedCourseLinks.length} modules &middot; {totalLessons} lessons
                 </div>
                 {course.language && (
                   <div className="flex items-center gap-2">
@@ -488,8 +548,157 @@ export default function CourseDetail() {
                     </div>
                   );
                 })}
+
+                {sortedCourseLinks.map((cm) => {
+                  const isExpanded = expandedModule === `cm:${cm.id}`;
+                  const content = courseLinkContent[cm.id];
+                  const linkedMods = content?.modules || [];
+                  const linkLessonsCount = linkedMods.reduce(
+                    (acc, m) => acc + (content?.lessonsByModule?.[m.id]?.length || 0),
+                    0
+                  );
+                  return (
+                    <div
+                      key={cm.id}
+                      className="bg-white rounded-2xl border border-[#00A86B]/30 overflow-hidden"
+                    >
+                      <button
+                        onClick={() => {
+                          if (!isExpanded) {
+                            setExpandedModule(`cm:${cm.id}`);
+                            if (!content?.loaded) loadCourseLinkContent(cm);
+                          } else {
+                            setExpandedModule(null);
+                          }
+                        }}
+                        className="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-colors text-left"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          {isExpanded ? (
+                            <ChevronDown className="w-5 h-5 text-[#00A86B] flex-shrink-0" />
+                          ) : (
+                            <ChevronRight className="w-5 h-5 text-[#00A86B] flex-shrink-0" />
+                          )}
+                          <BookOpen className="w-5 h-5 text-[#00A86B] flex-shrink-0" />
+                          <div className="min-w-0">
+                            <span className="font-semibold truncate block text-[#0B2545]">
+                              {cm.displayOrder}. {cm.title}
+                            </span>
+                            <span className="text-xs font-semibold text-[#008f5a]">
+                              Type: Existing Course
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 flex-shrink-0">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/courses/${cm.courseId}`);
+                            }}
+                            className="text-xs font-semibold text-blue-600 hover:underline flex items-center gap-1"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                            Open course
+                          </button>
+                          <span className="text-xs text-slate-400">
+                            {content?.loaded
+                              ? `${linkedMods.length} module${
+                                  linkedMods.length === 1 ? "" : "s"
+                                } · ${linkLessonsCount} lessons`
+                              : "click to load"}
+                          </span>
+                        </div>
+                      </button>
+
+                      {isExpanded && (
+                        <div className="border-t border-[#00A86B]/20">
+                          {!content?.loaded && (
+                            <div className="flex items-center justify-center py-6">
+                              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#00A86B]" />
+                            </div>
+                          )}
+                          {content?.loaded && linkedMods.length === 0 && (
+                            <p className="text-sm text-slate-400 text-center py-4">
+                              This course has no modules yet.
+                            </p>
+                          )}
+                          {content?.loaded &&
+                            linkedMods
+                              .slice()
+                              .sort(
+                                (a, b) =>
+                                  (a.displayOrder || 0) - (b.displayOrder || 0)
+                              )
+                              .map((mod) => {
+                                const cLessons =
+                                  content.lessonsByModule[mod.id] || [];
+                                const cTests =
+                                  content.mockTestsByModule[mod.id] || [];
+                                return (
+                                  <div
+                                    key={mod.id}
+                                    className="px-6 py-3 border-b border-slate-100 last:border-0"
+                                  >
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <span className="text-xs px-1.5 py-0.5 bg-[#00A86B]/10 text-[#008f5a] rounded flex-shrink-0 font-semibold">
+                                        Module {mod.displayOrder}: {mod.title}
+                                      </span>
+                                      <span className="text-xs text-slate-400">
+                                        {cLessons.length} lessons
+                                        {cTests.length > 0
+                                          ? ` · ${cTests.length} mock test${
+                                              cTests.length === 1 ? "" : "s"
+                                            }`
+                                          : ""}
+                                      </span>
+                                    </div>
+                                    {cLessons.map((lesson) => (
+                                      <button
+                                        key={lesson.id}
+                                        onClick={() =>
+                                          handleViewLesson(mod.id, lesson.id)
+                                        }
+                                        className="w-full flex items-center gap-3 px-4 py-2 hover:bg-slate-50 transition-colors text-left"
+                                      >
+                                        <PlayCircle className="w-4 h-4 text-[#00A86B] flex-shrink-0" />
+                                        <span className="text-sm text-slate-600">
+                                          {lesson.title}
+                                        </span>
+                                        {lesson.estimatedMinutes && (
+                                          <span className="text-xs text-slate-400 ml-auto">
+                                            {lesson.estimatedMinutes} min
+                                          </span>
+                                        )}
+                                      </button>
+                                    ))}
+                                    {cTests.length > 0 && (
+                                      <div className="pt-2">
+                                        {cTests.map((test) => (
+                                          <button
+                                            key={test.id}
+                                            onClick={() =>
+                                              handleViewMockTest(test.id)
+                                            }
+                                            className="w-full flex items-center gap-3 px-4 py-2 hover:bg-slate-50 transition-colors text-left"
+                                          >
+                                            <ClipboardList className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                                            <span className="text-sm text-slate-600">
+                                              {test.title}
+                                            </span>
+                                          </button>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-              {modules.length === 0 && (
+              {modules.length === 0 && courseLinks.length === 0 && (
                 <div className="bg-white rounded-2xl border border-slate-100 p-6 text-center text-sm text-slate-400">
                   Course curriculum coming soon
                 </div>

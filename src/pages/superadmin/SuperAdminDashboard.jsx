@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import toast from "react-hot-toast";
 import { Link, useLocation } from "react-router-dom";
 import {
   Users,
@@ -53,6 +54,7 @@ import ContactUsTable from "../../components/contact/ContactUsTable";
 import CourseFormModal from "../../components/admin/CourseFormModal";
 import KitFormModal from "../../components/admin/KitFormModal";
 import KitQuestionsModal from "../../components/admin/KitQuestionsModal";
+import DeleteConfirmModal from "../../components/ui/DeleteConfirmModal";
 import {
   getAllKits,
   publishKit,
@@ -71,6 +73,33 @@ const INTERVIEW_KITS = [
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function mapDeleteError(entityType, rawError) {
+  const raw = (rawError || "").toLowerCase();
+  const r = rawError;
+
+  if (entityType === "course" || entityType === "kit") {
+    if (
+      raw.includes("enrolled") ||
+      raw.includes("enrollment") ||
+      raw.includes("student") ||
+      raw.includes("cannot delete") ||
+      raw.includes("in use") ||
+      raw.includes("associated")
+    ) {
+      return `Unable to delete this ${entityType === "course" ? "course" : "interview kit"} because it is currently enrolled by one or more students. Please remove or transfer the student enrollments before deleting.`;
+    }
+  }
+
+  if (raw.includes("forbidden") || raw.includes("unauthorized")) {
+    return "You do not have permission to perform this action. Please contact your administrator.";
+  }
+  if (raw.includes("not found") || raw.includes("no longer exists")) {
+    return "The requested item no longer exists. It may have already been deleted.";
+  }
+
+  return (r || `Failed to delete this ${entityType}. Please try again.`).replace(/^Error:\s*/i, "");
+}
 
 function Avatar({ name, size = 36 }) {
   const initials = name
@@ -574,7 +603,7 @@ function CoursesSection({ courses, onPublish, onUnpublish, onDelete, onAdd, onEd
                         <EyeOff className="w-4 h-4" />
                       </button>
                     )}
-                    <button onClick={() => onDelete(c.id)} title="Delete" className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-150 hover:opacity-80 active:scale-95" style={{ color: "#ef4444", background: "#ef444415", border: "1px solid #ef444430" }}>
+                    <button onClick={() => onDelete(c)} title="Delete" className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-150 hover:opacity-80 active:scale-95" style={{ color: "#ef4444", background: "#ef444415", border: "1px solid #ef444430" }}>
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
@@ -913,7 +942,7 @@ function InterviewKitsSection({ kits, onAdd, onEdit, onPublish, onUnpublish, onD
                       <EyeOff className="w-4 h-4" />
                     </button>
                   )}
-                  <button onClick={() => onDelete(kit.id)} title="Delete" className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-150 hover:opacity-80 active:scale-95" style={{ color: "#ef4444", background: "#ef444415", border: "1px solid #ef444430" }}>
+                  <button onClick={() => onDelete(kit)} title="Delete" className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-150 hover:opacity-80 active:scale-95" style={{ color: "#ef4444", background: "#ef444415", border: "1px solid #ef444430" }}>
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
@@ -1185,6 +1214,7 @@ export default function CombinedDashboard() {
   const [kitQuestionsModal, setKitQuestionsModal] = useState(null);
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState("");
+  const [deleteModal, setDeleteModal] = useState(null);
 
   useEffect(() => {
     loadData();
@@ -1272,13 +1302,32 @@ export default function CombinedDashboard() {
   };
 
   const handleDeleteStaff = async (member) => {
-    if (!confirm(`Delete staff member "${member.firstName}"? This cannot be undone.`)) return;
-    try {
-      await deleteStaff(member.userId);
-      setStaff((prev) => prev.filter((s) => s.userId !== member.userId));
-    } catch (err) {
-      console.error("Failed to delete:", err);
-    }
+    setDeleteModal({
+      type: "staff",
+      item: member,
+      title: "Delete Staff Member",
+      entityName: `${member.firstName} ${member.lastName || ""}`.trim(),
+      entityType: "staff member",
+      errorMessage: "",
+      metaFields: [
+        { label: "Email", value: member.email },
+        { label: "Staff Code", value: member.staffCode || "" },
+        { label: "Designation", value: member.designation || "" },
+        { label: "Department", value: member.department || "" },
+      ],
+      onConfirm: async () => {
+        try {
+          await deleteStaff(member.userId);
+          setStaff((prev) => prev.filter((s) => s.userId !== member.userId));
+          setDeleteModal(null);
+          toast.success(`Staff member "${member.firstName}" was deleted successfully.`);
+        } catch (err) {
+          const raw = err?.response?.data?.message || err?.message || "";
+          const friendly = mapDeleteError("staff", raw);
+          throw new Error(friendly);
+        }
+      },
+    });
   };
 
   const handleResetPassword = async ({ newPassword, confirmPassword }) => {
@@ -1315,14 +1364,32 @@ export default function CombinedDashboard() {
     }
   };
 
-  const handleDeleteKit = async (kitId) => {
-    if (!confirm("Are you sure you want to delete this interview kit?")) return;
-    try {
-      await deleteKit(kitId);
-      setKits((prev) => prev.filter((k) => k.id !== kitId));
-    } catch (err) {
-      console.error("Failed to delete kit:", err);
-    }
+  const handleDeleteKit = async (kit) => {
+    setDeleteModal({
+      type: "kit",
+      item: kit,
+      title: "Delete Interview Kit",
+      entityName: kit.name,
+      entityType: "interview kit",
+      errorMessage: "",
+      metaFields: [
+        { label: "Questions", value: kit.questionCount != null ? `${kit.questionCount}` : "" },
+        { label: "Level", value: kit.level || "" },
+        { label: "Enrollments", value: kit.enrollmentCount > 0 ? `${kit.enrollmentCount}` : "" },
+      ],
+      onConfirm: async () => {
+        try {
+          await deleteKit(kit.id);
+          setKits((prev) => prev.filter((k) => k.id !== kit.id));
+          setDeleteModal(null);
+          toast.success(`Interview kit "${kit.name}" was deleted successfully.`);
+        } catch (err) {
+          const raw = err?.response?.data?.message || err?.message || "";
+          const friendly = mapDeleteError("kit", raw);
+          throw new Error(friendly);
+        }
+      },
+    });
   };
 
   // ── Course handlers ──
@@ -1347,14 +1414,33 @@ export default function CombinedDashboard() {
     }
   };
 
-  const handleDeleteCourse = async (courseId) => {
-    if (!confirm("Are you sure you want to delete this course?")) return;
-    try {
-      await deleteCourse(courseId);
-      setCourses((prev) => prev.filter((c) => c.id !== courseId));
-    } catch (err) {
-      console.error("Failed to delete:", err);
-    }
+  const handleDeleteCourse = async (course) => {
+    setDeleteModal({
+      type: "course",
+      item: course,
+      title: "Delete Course",
+      entityName: course.title,
+      entityType: "course",
+      errorMessage: "",
+      metaFields: [
+        { label: "Course ID", value: `${course.courseCode || course.id || ""}` },
+        { label: "Level", value: course.level || "" },
+        { label: "Price", value: course.price ? `₹${course.price}` : "Free" },
+        { label: "Language", value: course.language || "" },
+      ],
+      onConfirm: async () => {
+        try {
+          await deleteCourse(course.id);
+          setCourses((prev) => prev.filter((c) => c.id !== course.id));
+          setDeleteModal(null);
+          toast.success(`Course "${course.title}" was deleted successfully.`);
+        } catch (err) {
+          const raw = err?.response?.data?.message || err?.message || "";
+          const friendly = mapDeleteError("course", raw);
+          throw new Error(friendly);
+        }
+      },
+    });
   };
 
   // ── Render section ──
@@ -1391,8 +1477,7 @@ export default function CombinedDashboard() {
             onDelete={handleDeleteCourse}
             onAdd={() => setCourseFormModal({ courseId: null })}
             onEdit={(id) => setCourseFormModal({ courseId: id })}
-          />
-        );
+          />        );
       case "contacts":
         return <ContactsSection />;
       case "enrollments":
@@ -1488,6 +1573,20 @@ export default function CombinedDashboard() {
         <KitQuestionsModal
           kit={kitQuestionsModal}
           onClose={() => { setKitQuestionsModal(null); loadData(); }}
+        />
+      )}
+
+      {deleteModal && (
+        <DeleteConfirmModal
+          open={!!deleteModal}
+          onOpenChange={(open) => {
+            if (!open) setDeleteModal(null);
+          }}
+          title={deleteModal.title}
+          entityName={deleteModal.entityName}
+          entityType={deleteModal.entityType}
+          metaFields={deleteModal.metaFields}
+          onConfirm={deleteModal.onConfirm}
         />
       )}
     </>

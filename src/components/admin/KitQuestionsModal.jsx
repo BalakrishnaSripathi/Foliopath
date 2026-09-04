@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import toast from "react-hot-toast";
 import {
   X,
   Plus,
@@ -29,6 +30,7 @@ import {
   reorderKitQuestions,
 } from "../../api/interviewKitService";
 import RenderAnswer from "./RenderAnswer";
+import DeleteConfirmModal from "../ui/DeleteConfirmModal";
 
 const FENCE = "\u0060\u0060\u0060";
 
@@ -407,6 +409,7 @@ export default function KitQuestionsModal({ kit, onClose }) {
   const [editingModule, setEditingModule] = useState(null);
   const [expandedModules, setExpandedModules] = useState({});
   const [selectedModuleId, setSelectedModuleId] = useState(null);
+  const [deleteModal, setDeleteModal] = useState(null);
 
   useEffect(() => {
     loadKit();
@@ -454,14 +457,29 @@ export default function KitQuestionsModal({ kit, onClose }) {
     }
   };
 
-  const handleDeleteModule = async (moduleId) => {
-    if (!confirm("Delete this module? Questions inside will be moved to unassigned.")) return;
-    try {
-      await deleteKitModule(kit.id, moduleId);
-      loadKit();
-    } catch (err) {
-      console.error("Failed to delete module:", err);
-    }
+  const handleDeleteModule = (mod) => {
+    setDeleteModal({
+      type: "kitmodule",
+      title: "Delete Module",
+      entityName: mod?.name || "Module",
+      entityType: "module",
+      metaFields: [
+        { label: "Module ID", value: `${mod?.id || ""}` },
+        { label: "Questions in Module", value: (mod?.questions || []).length > 0 ? `${(mod?.questions || []).length}` : "" },
+      ],
+      description:
+        "Are you sure you want to delete this module? Questions inside will be moved to unassigned. This action cannot be undone.",
+      onConfirm: async () => {
+        try {
+          await deleteKitModule(kit.id, mod.id);
+          loadKit();
+          setDeleteModal(null);
+          toast.success(`Module "${mod?.name || ""}" was deleted successfully.`);
+        } catch (err) {
+          throw new Error(mapDeleteError("module", err));
+        }
+      },
+    });
   };
 
   const handleReorderModules = async (newModules) => {
@@ -525,14 +543,27 @@ export default function KitQuestionsModal({ kit, onClose }) {
     }
   };
 
-  const handleDeleteQuestion = async (questionId) => {
-    if (!confirm("Delete this question?")) return;
-    try {
-      await deleteKitQuestion(kit.id, questionId);
-      loadKit();
-    } catch (err) {
-      console.error("Failed to delete question:", err);
-    }
+  const handleDeleteQuestion = (question) => {
+    setDeleteModal({
+      type: "question",
+      title: "Delete Question",
+      entityName: question?.questionText || question?.title || "Question",
+      entityType: "question",
+      metaFields: [
+        { label: "Question ID", value: `${question?.id || ""}` },
+        { label: "Type", value: question?.type || "" },
+      ],
+      onConfirm: async () => {
+        try {
+          await deleteKitQuestion(kit.id, question.id);
+          loadKit();
+          setDeleteModal(null);
+          toast.success(`Question was deleted successfully.`);
+        } catch (err) {
+          throw new Error(mapDeleteError("question", err));
+        }
+      },
+    });
   };
 
   const moveQuestionUp = (moduleId, qIdx) => {
@@ -738,7 +769,7 @@ export default function KitQuestionsModal({ kit, onClose }) {
                               <Pencil className="w-3.5 h-3.5" />
                             </button>
                             <button
-                              onClick={() => handleDeleteModule(mod.id)}
+                              onClick={() => handleDeleteModule(mod)}
                               title="Delete Module"
                               className="w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-150 hover:opacity-80"
                               style={{ color: "#ef4444", background: "#ef444415" }}
@@ -791,7 +822,7 @@ export default function KitQuestionsModal({ kit, onClose }) {
                                     setShowAddForm(false);
                                     setShowModuleForm(false);
                                   }}
-                                  onDelete={() => handleDeleteQuestion(q.id)}
+                                  onDelete={() => handleDeleteQuestion(q)}
                                 />
                               </ReorderableItem>
                             ))
@@ -824,7 +855,7 @@ export default function KitQuestionsModal({ kit, onClose }) {
                               setShowAddForm(false);
                               setShowModuleForm(false);
                             }}
-                            onDelete={() => handleDeleteQuestion(q.id)}
+                            onDelete={() => handleDeleteQuestion(q)}
                           />
                         ))}
                       </div>
@@ -846,8 +877,47 @@ export default function KitQuestionsModal({ kit, onClose }) {
           </button>
         </div>
       </div>
+
+      {deleteModal && (
+        <DeleteConfirmModal
+          open={!!deleteModal}
+          onOpenChange={(open) => {
+            if (!open) setDeleteModal(null);
+          }}
+          title={deleteModal.title}
+          entityName={deleteModal.entityName}
+          entityType={deleteModal.entityType}
+          description={deleteModal.description}
+          metaFields={deleteModal.metaFields}
+          onConfirm={deleteModal.onConfirm}
+        />
+      )}
     </div>
   );
+}
+
+function mapDeleteError(entityType, err) {
+  const rawMsg = (err?.response?.data?.message || err?.message || "").toLowerCase();
+  const msg = err?.response?.data?.message || err?.message || "";
+  if (
+    rawMsg.includes("enrolled") ||
+    rawMsg.includes("enrollment") ||
+    rawMsg.includes("student") ||
+    rawMsg.includes("cannot delete") ||
+    rawMsg.includes("in use") ||
+    rawMsg.includes("associated")
+  ) {
+    return entityType === "module"
+      ? "Unable to delete this module because it is currently in use. Please remove or reassign related content before deleting."
+      : `Unable to delete this ${entityType} because it is currently in use. Please remove or reassign related content before deleting.`;
+  }
+  if (rawMsg.includes("forbidden") || rawMsg.includes("unauthorized")) {
+    return "You do not have permission to perform this action. Please contact your administrator.";
+  }
+  if (rawMsg.includes("not found") || rawMsg.includes("no longer exists")) {
+    return "The requested item no longer exists. It may have already been deleted.";
+  }
+  return (msg || `Failed to delete this ${entityType}. Please try again.`).replace(/^Error:\s*/i, "");
 }
 
 // ─── Question Item ──────────────────────────────────────────────────

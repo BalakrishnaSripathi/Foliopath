@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import toast from "react-hot-toast";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -20,6 +21,7 @@ import {
   OPTION_LABELS,
 } from "../../api/mockTestService";
 import Header from "../../components/layout/Header";
+import DeleteConfirmModal from "../../components/ui/DeleteConfirmModal";
 
 const CODE_LANGUAGES = [
   "javascript",
@@ -339,6 +341,28 @@ function MockTestForm({ initial, onSave, onCancel, saving }) {
   );
 }
 
+function mapDeleteError(err) {
+  const rawMsg = (err?.response?.data?.message || err?.message || "").toLowerCase();
+  const msg = err?.response?.data?.message || err?.message || "";
+  if (
+    rawMsg.includes("enrolled") ||
+    rawMsg.includes("enrollment") ||
+    rawMsg.includes("student") ||
+    rawMsg.includes("cannot delete") ||
+    rawMsg.includes("in use") ||
+    rawMsg.includes("associated")
+  ) {
+    return "Unable to delete this mock test because it is currently in use. Please remove or reassign related content before deleting.";
+  }
+  if (rawMsg.includes("forbidden") || rawMsg.includes("unauthorized")) {
+    return "You do not have permission to perform this action. Please contact your administrator.";
+  }
+  if (rawMsg.includes("not found") || rawMsg.includes("no longer exists")) {
+    return "The requested item no longer exists. It may have already been deleted.";
+  }
+  return (msg || "Failed to delete this mock test. Please try again.").replace(/^Error:\s*/i, "");
+}
+
 export default function AdminMockTest() {
   const { courseId, moduleId } = useParams();
   const navigate = useNavigate();
@@ -348,6 +372,7 @@ export default function AdminMockTest() {
   const [saving, setSaving] = useState(false);
   const [expandedTestId, setExpandedTestId] = useState(null);
   const [formState, setFormState] = useState(null); // { testId | null, initial }
+  const [deleteModal, setDeleteModal] = useState(null);
 
   useEffect(() => {
     loadData();
@@ -422,14 +447,29 @@ export default function AdminMockTest() {
     }
   };
 
-  const handleDelete = async (testId) => {
-    if (!confirm("Delete this mock test?")) return;
-    try {
-      await deleteMockTest(testId);
-      await loadData();
-    } catch (err) {
-      console.error(err);
-    }
+  const handleDelete = (test) => {
+    setDeleteModal({
+      type: "mocktest",
+      title: "Delete Mock Test",
+      entityName: test.title,
+      entityType: "mock test",
+      metaFields: [
+        { label: "Test ID", value: `${test.id || ""}` },
+        { label: "Questions", value: (test.questions || []).length > 0 ? `${(test.questions || []).length}` : "" },
+        { label: "Duration", value: test.durationMinutes ? `${test.durationMinutes} min` : "" },
+        { label: "Pass %", value: test.passPercentage != null ? `${test.passPercentage}%` : "" },
+      ],
+      onConfirm: async () => {
+        try {
+          await deleteMockTest(test.id);
+          await loadData();
+          setDeleteModal(null);
+          toast.success(`Mock test "${test.title}" was deleted successfully.`);
+        } catch (err) {
+          throw new Error(mapDeleteError(err));
+        }
+      },
+    });
   };
 
   if (loading) {
@@ -525,7 +565,7 @@ export default function AdminMockTest() {
                         Edit
                       </button>
                       <button
-                        onClick={() => handleDelete(test.id)}
+                        onClick={() => handleDelete(test)}
                         className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -649,6 +689,20 @@ export default function AdminMockTest() {
           </div>
         )}
       </div>
+
+      {deleteModal && (
+        <DeleteConfirmModal
+          open={!!deleteModal}
+          onOpenChange={(open) => {
+            if (!open) setDeleteModal(null);
+          }}
+          title={deleteModal.title}
+          entityName={deleteModal.entityName}
+          entityType={deleteModal.entityType}
+          metaFields={deleteModal.metaFields}
+          onConfirm={deleteModal.onConfirm}
+        />
+      )}
     </div>
   );
 }

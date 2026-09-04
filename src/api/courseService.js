@@ -216,5 +216,28 @@ export const reorderLessonItems = (moduleId, lessonId, items) => {
   });
 };
 
+// ==================== COURSE MODULES (course-as-a-module links) ====================
+
+export const getCourseModules = (courseId) => {
+  return api.get(`/api/courses/${courseId}/course-modules`);
+};
+
+export const addCourseModule = (courseId, data) => {
+  return api.post(`/api/courses/${courseId}/course-modules`, {
+    courseId: data.courseId,
+    displayOrder: data.displayOrder,
+  });
+};
+
+export const removeCourseModule = (courseId, courseModuleId) => {
+  return api.delete(`/api/courses/${courseId}/course-modules/${courseModuleId}`);
+};
+
+export const reorderCourseModules = (courseId, courseModules) => {
+  return api.patch(`/api/courses/${courseId}/course-modules/reorder`, {
+    entries: courseModules.map((cm, i) => ({ id: cm.id, displayOrder: i + 1 })),
+  });
+};
+
 // ==================== DASHBOARD ====================
 

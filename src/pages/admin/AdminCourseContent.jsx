@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import toast from "react-hot-toast";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
   ArrowLeft,
@@ -12,9 +13,11 @@ import {
   ArrowUp,
   ArrowDown,
   ClipboardList,
+  BookOpen,
 } from "lucide-react";
 import {
   getCourseById,
+  getAllCourses,
   getModules,
   addModule,
   updateModule,
@@ -25,6 +28,9 @@ import {
   deleteLesson,
   reorderModules,
   reorderLessons,
+  getCourseModules,
+  addCourseModule,
+  removeCourseModule,
 } from "../../api/courseService";
 import {
   getMockTests,
@@ -35,6 +41,8 @@ import {
 } from "../../api/mockTestService";
 import RichTextEditor from "../../components/RichTextEditor";
 import useListMovable from "../../hooks/useListMovable";
+import DeleteConfirmModal from "../../components/ui/DeleteConfirmModal";
+import CourseModulePickerModal from "../../components/admin/CourseModulePickerModal";
 
 const LESSON_TYPES = ["CONCEPT", "TEXT_ONLY", "CODE_ONLY", "TEXT_AND_CODE"];
 const CONTENT_TYPES = ["TEXT", "CODE", "TEXT_AND_CODE", "DOCUMENT", "TEXT_AND_DOCUMENT"];
@@ -688,6 +696,44 @@ function LessonForm({ initial, onSave, onCancel, saving }) {
   );
 }
 
+function mapDeleteError(entityType, err) {
+  const rawMsg = (err?.response?.data?.message || err?.message || "").toLowerCase();
+  const msg = err?.response?.data?.message || err?.message || "";
+  if (
+    rawMsg.includes("enrolled") ||
+    rawMsg.includes("enrollment") ||
+    rawMsg.includes("student") ||
+    rawMsg.includes("cannot delete") ||
+    rawMsg.includes("in use") ||
+    rawMsg.includes("associated")
+  ) {
+    return entityType === "module"
+      ? "Unable to delete this module because it is used by one or more courses. Please remove the associations before deleting."
+      : `Unable to delete this ${entityType} because it is currently in use. Please remove or reassign related content before deleting.`;
+  }
+  if (rawMsg.includes("forbidden") || rawMsg.includes("unauthorized")) {
+    return "You do not have permission to perform this action. Please contact your administrator.";
+  }
+  if (rawMsg.includes("not found") || rawMsg.includes("no longer exists")) {
+    return "The requested item no longer exists. It may have already been deleted.";
+  }
+  return (msg || `Failed to delete this ${entityType}. Please try again.`).replace(/^Error:\s*/i, "");
+}
+
+function mapCourseModuleError(err) {
+  const rawMsg = (err?.response?.data?.message || err?.message || "").toLowerCase();
+  if (rawMsg.includes("itself") || rawMsg.includes("self")) {
+    return "A course cannot be added as a module to itself.";
+  }
+  if (rawMsg.includes("already added")) {
+    return "This course is already added as a module.";
+  }
+  if (rawMsg.includes("circular")) {
+    return "This course cannot be added because it would create a circular course dependency.";
+  }
+  return "Unable to add the course module. Please try again.";
+}
+
 export default function AdminCourseContent() {
   const { courseId } = useParams();
   const navigate = useNavigate();
@@ -708,6 +754,11 @@ export default function AdminCourseContent() {
   const [movingLessonKey, setMovingLessonKey] = useState(null);
   const [editingModuleId, setEditingModuleId] = useState(null);
   const [editingModuleTitle, setEditingModuleTitle] = useState("");
+  const [deleteModal, setDeleteModal] = useState(null);
+  const [courseModules, setCourseModules] = useState([]);
+  const [coursePickerOpen, setCoursePickerOpen] = useState(false);
+  const [allCourses, setAllCourses] = useState([]);
+  const [courseModuleSaving, setCourseModuleSaving] = useState(false);
 
   const modulesMovable = useListMovable([], {
     movingId: movingModuleId,
@@ -726,11 +777,82 @@ export default function AdminCourseContent() {
       ]);
       setCourse(courseRes.data);
       modulesMovable.setItems(modulesRes.data);
+      try {
+        const cmRes = await getCourseModules(courseId);
+        setCourseModules(cmRes.data || []);
+      } catch (cmErr) {
+        console.error("Failed to load course modules:", cmErr);
+        setCourseModules([]);
+      }
     } catch (err) {
       console.error("Failed to load:", err);
     } finally {
       setLoading(false);
     }
+  };
+
+  const openCoursePicker = async () => {
+    if (allCourses.length === 0) {
+      try {
+        const { data } = await getAllCourses();
+        setAllCourses(data);
+      } catch (err) {
+        console.error("Failed to load available courses:", err);
+        toast.error("Unable to load available courses. Please try again.");
+        return;
+      }
+    }
+    setCoursePickerOpen(true);
+  };
+
+  const handleAddCourseModule = async (selectedCourseId) => {
+    setCourseModuleSaving(true);
+    try {
+      await addCourseModule(courseId, {
+        courseId: selectedCourseId,
+        displayOrder: courseModules.length + 1,
+      });
+      setCoursePickerOpen(false);
+      const cmRes = await getCourseModules(courseId);
+      setCourseModules(cmRes.data || []);
+      toast.success("Existing course was added as a module.");
+    } catch (err) {
+      console.error("Failed to add course module:", err);
+      toast.error(mapCourseModuleError(err));
+    } finally {
+      setCourseModuleSaving(false);
+    }
+  };
+
+  const handleRemoveCourseModule = (cm) => {
+    const linkedCourseTitle = cm?.title || "Course";
+    setDeleteModal({
+      type: "courseModule",
+      title: "Remove Course Module",
+      entityName: linkedCourseTitle,
+      entityType: "course module",
+      metaFields: [
+        { label: "Course ID", value: `${cm?.courseId || cm?.id || ""}` },
+        { label: "Type", value: "Existing Course" },
+      ],
+      confirmLabel: "Remove Course",
+      description: `This will remove ${linkedCourseTitle} from the ${course?.title || "current"} course, but the ${linkedCourseTitle} course itself will not be deleted.`,
+      onConfirm: async () => {
+        try {
+          await removeCourseModule(courseId, cm.id);
+          setCourseModules(
+            courseModules.filter((x) => x.id !== cm.id)
+          );
+          setDeleteModal(null);
+          toast.success(`Removed "${linkedCourseTitle}" as a module.`);
+        } catch (err) {
+          throw new Error(
+            err?.response?.data?.message ||
+              "Unable to remove the course module. Please try again."
+          );
+        }
+      },
+    });
   };
 
   const handleMoveModule = async (moduleId, dir) => {
@@ -865,24 +987,43 @@ export default function AdminCourseContent() {
     }
   };
 
-  const handleDeleteModule = async (moduleId) => {
-    if (!confirm("Delete this module and all its lessons?")) return;
-    try {
-      await deleteModule(courseId, moduleId);
-      modulesMovable.setItems(modulesMovable.list.filter((m) => m.id !== moduleId));
-      setLessonsByModule((prev) => {
-        const next = { ...prev };
-        delete next[moduleId];
-        return next;
-      });
-      setMockTestsByModule((prev) => {
-        const next = { ...prev };
-        delete next[moduleId];
-        return next;
-      });
-    } catch (err) {
-      console.error(err);
-    }
+  const handleDeleteModule = (mod) => {
+    const moduleId = mod?.id;
+    const lessons = lessonsByModule[moduleId] || [];
+    const mockTests = mockTestsByModule[moduleId] || [];
+    setDeleteModal({
+      type: "module",
+      title: "Delete Module",
+      entityName: mod?.title || "Module",
+      entityType: "module",
+      metaFields: [
+        { label: "Module ID", value: `${moduleId}` },
+        { label: "Lessons", value: lessons.length > 0 ? `${lessons.length}` : "" },
+        { label: "Mock Tests", value: mockTests.length > 0 ? `${mockTests.length}` : "" },
+      ],
+      description:
+        "Are you sure you want to delete this module and all of its lessons and mock tests? This action cannot be undone.",
+      onConfirm: async () => {
+        try {
+          await deleteModule(courseId, moduleId);
+          modulesMovable.setItems(modulesMovable.list.filter((m) => m.id !== moduleId));
+          setLessonsByModule((prev) => {
+            const next = { ...prev };
+            delete next[moduleId];
+            return next;
+          });
+          setMockTestsByModule((prev) => {
+            const next = { ...prev };
+            delete next[moduleId];
+            return next;
+          });
+          setDeleteModal(null);
+          toast.success(`Module "${mod?.title || ""}" was deleted successfully.`);
+        } catch (err) {
+          throw new Error(mapDeleteError("module", err));
+        }
+      },
+    });
   };
 
   const openAddLesson = (mod) => {
@@ -959,14 +1100,29 @@ export default function AdminCourseContent() {
     }
   };
 
-  const handleDeleteLesson = async (lessonId, moduleId) => {
-    if (!confirm("Delete this lesson?")) return;
-    try {
-      await deleteLesson(moduleId, lessonId);
-      await refreshLessons(moduleId);
-    } catch (err) {
-      console.error(err);
-    }
+  const handleDeleteLesson = (lesson, moduleId) => {
+    const lessons = lessonsByModule[moduleId] || [];
+    setDeleteModal({
+      type: "lesson",
+      title: "Delete Lesson",
+      entityName: lesson?.title || "Lesson",
+      entityType: "lesson",
+      metaFields: [
+        { label: "Lesson ID", value: `${lesson?.id || ""}` },
+        { label: "Module", value: modulesMovable.list.find((m) => m.id === moduleId)?.title || "" },
+        { label: "Lessons in Module", value: lessons.length > 0 ? `${lessons.length}` : "" },
+      ],
+      onConfirm: async () => {
+        try {
+          await deleteLesson(moduleId, lesson.id);
+          await refreshLessons(moduleId);
+          setDeleteModal(null);
+          toast.success(`Lesson "${lesson?.title || ""}" was deleted successfully.`);
+        } catch (err) {
+          throw new Error(mapDeleteError("lesson", err));
+        }
+      },
+    });
   };
 
   const openAddMockTest = (mod) => {
@@ -1026,14 +1182,28 @@ export default function AdminCourseContent() {
     }
   };
 
-  const handleDeleteMockTest = async (testId, moduleId) => {
-    if (!confirm("Delete this mock test?")) return;
-    try {
-      await deleteMockTest(testId);
-      await refreshMockTests(moduleId);
-    } catch (err) {
-      console.error(err);
-    }
+  const handleDeleteMockTest = (test, moduleId) => {
+    setDeleteModal({
+      type: "mocktest",
+      title: "Delete Mock Test",
+      entityName: test?.title || "Mock Test",
+      entityType: "mock test",
+      metaFields: [
+        { label: "Test ID", value: `${test?.id || ""}` },
+        { label: "Questions", value: (test?.questions || []).length > 0 ? `${(test?.questions || []).length}` : "" },
+        { label: "Duration", value: test?.durationMinutes ? `${test.durationMinutes} min` : "" },
+      ],
+      onConfirm: async () => {
+        try {
+          await deleteMockTest(test.id);
+          await refreshMockTests(moduleId);
+          setDeleteModal(null);
+          toast.success(`Mock test "${test?.title || ""}" was deleted successfully.`);
+        } catch (err) {
+          throw new Error(mapDeleteError("mocktest", err));
+        }
+      },
+    });
   };
 
   if (loading) {
@@ -1061,15 +1231,26 @@ export default function AdminCourseContent() {
             </h1>
             <p className="text-sm text-slate-500 mt-1">
               {course?.title} &middot; {modulesMovable.list.length} modules
+              {courseModules.length > 0 &&
+                ` + ${courseModules.length} course module(s)`}
             </p>
           </div>
-          <button
-            onClick={() => setShowAddModule(true)}
-            className="flex items-center gap-2 bg-[#00A86B] hover:bg-[#008f5a] text-white font-semibold px-4 py-2 rounded-xl shadow-md hover:shadow-lg transition-all duration-200 text-sm"
-          >
-            <Plus className="w-4 h-4" />
-            Add Module
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={openCoursePicker}
+              className="flex items-center gap-2 bg-white hover:bg-slate-50 text-[#0B2545] border border-slate-200 font-semibold px-4 py-2 rounded-xl shadow-sm hover:shadow transition-all duration-200 text-sm"
+            >
+              <BookOpen className="w-4 h-4" />
+              Add Existing Course as Module
+            </button>
+            <button
+              onClick={() => setShowAddModule(true)}
+              className="flex items-center gap-2 bg-[#00A86B] hover:bg-[#008f5a] text-white font-semibold px-4 py-2 rounded-xl shadow-md hover:shadow-lg transition-all duration-200 text-sm"
+            >
+              <Plus className="w-4 h-4" />
+              Add Module
+            </button>
+          </div>
         </div>
 
         {successMessage && (
@@ -1104,6 +1285,73 @@ export default function AdminCourseContent() {
             >
               <X className="w-4 h-4" />
             </button>
+          </div>
+        )}
+
+        {courseModules.length > 0 && (
+          <div className="mb-6">
+            <div className="flex items-center gap-2 mb-3">
+              <BookOpen className="w-4 h-4 text-[#00A86B]" />
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                Existing Courses as Modules ({courseModules.length})
+              </span>
+            </div>
+            <div className="space-y-3">
+              {courseModules.map((cm) => (
+                <div
+                  key={cm.id}
+                  className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden"
+                >
+                  <div className="flex items-center justify-between p-4 bg-slate-50 border-b border-slate-100">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <BookOpen className="w-5 h-5 text-[#00A86B] flex-shrink-0" />
+                      <div className="min-w-0">
+                        <div className="font-bold text-[#0B2545] truncate">
+                          {cm.displayOrder}. {cm.title}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5 text-xs text-slate-500">
+                          <span className="px-1.5 py-0.5 bg-[#00A86B]/10 text-[#008f5a] rounded flex-shrink-0 font-semibold">
+                            Type: Existing Course
+                          </span>
+                          <span className="font-mono">
+                            Course ID: {cm.courseId}
+                          </span>
+                          <span
+                            className={`px-1.5 py-0.5 rounded font-medium ${
+                              cm.status === "PUBLISHED"
+                                ? "bg-green-100 text-green-700"
+                                : cm.status === "DRAFT"
+                                ? "bg-amber-100 text-amber-700"
+                                : "bg-slate-200 text-slate-600"
+                            }`}
+                          >
+                            {cm.status || "DRAFT"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button
+                        onClick={() =>
+                          navigate(`/admin/dashboard/courses/${cm.courseId}/content`)
+                        }
+                        className="text-xs font-semibold text-blue-600 hover:underline flex items-center gap-1"
+                      >
+                        View
+                      </button>
+                      <span className="text-slate-300 text-xs">|</span>
+                      <button
+                        onClick={() => handleRemoveCourseModule(cm)}
+                        className="text-xs font-semibold text-red-500 hover:text-red-700 hover:underline flex items-center gap-1"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -1181,7 +1429,7 @@ export default function AdminCourseContent() {
                         </button>
                       </div>
                       <button
-                        onClick={() => handleDeleteModule(mod.id)}
+                        onClick={() => handleDeleteModule(mod)}
                         className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -1293,7 +1541,7 @@ export default function AdminCourseContent() {
                                     </button>
                                     <button
                                       onClick={() =>
-                                        handleDeleteLesson(lesson.id, mod.id)
+                                        handleDeleteLesson(lesson, mod.id)
                                       }
                                       className="p-1 text-red-400 hover:text-red-600"
                                     >
@@ -1379,7 +1627,7 @@ export default function AdminCourseContent() {
                                       </button>
                                       <button
                                         onClick={() =>
-                                          handleDeleteMockTest(test.id, mod.id)
+                                          handleDeleteMockTest(test, mod.id)
                                         }
                                         className="p-1 text-red-400 hover:text-red-600"
                                       >
@@ -1424,7 +1672,7 @@ export default function AdminCourseContent() {
             })}
         </div>
 
-        {modulesMovable.list.length === 0 && !showAddModule && (
+        {modulesMovable.list.length === 0 && courseModules.length === 0 && !showAddModule && (
           <div className="text-center py-16 bg-white rounded-2xl border border-slate-100">
             <p className="text-slate-500 mb-4">
               No modules yet. Start building your course curriculum.
@@ -1437,6 +1685,32 @@ export default function AdminCourseContent() {
             </button>
           </div>
         )}
+
+        {deleteModal && (
+          <DeleteConfirmModal
+            open={!!deleteModal}
+            onOpenChange={(open) => {
+              if (!open) setDeleteModal(null);
+            }}
+            title={deleteModal.title}
+            entityName={deleteModal.entityName}
+            entityType={deleteModal.entityType}
+            description={deleteModal.description}
+            metaFields={deleteModal.metaFields}
+            confirmLabel={deleteModal.confirmLabel}
+            onConfirm={deleteModal.onConfirm}
+          />
+        )}
+
+        <CourseModulePickerModal
+          open={coursePickerOpen}
+          onOpenChange={setCoursePickerOpen}
+          courses={allCourses}
+          currentCourseId={courseId}
+          existingCourseModuleIds={courseModules.map((cm) => cm.courseId)}
+          onAdd={handleAddCourseModule}
+          saving={courseModuleSaving}
+        />
       </div>
   );
 }
