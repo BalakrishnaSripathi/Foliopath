@@ -9,6 +9,7 @@ import { getCart } from "../../api/cartService";
 const navLinks = [
   { label: "Home", href: "/" },
   { label: "Courses", href: "/courses" },
+  { label: "Interview Kits", href: "/interview-kits" },
   { label: "About", href: "/about" },
   { label: "Contact", href: "/contact" },
 ];

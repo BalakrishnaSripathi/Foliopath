@@ -10,6 +10,30 @@ const levelColors = {
   ADVANCED: "bg-red-100 text-red-700",
 };
 
+function CatalogTabs({ active }) {
+  const tabs = [
+    { key: "courses", label: "Courses", href: "/courses" },
+    { key: "kits", label: "Interview Kits", href: "/interview-kits" },
+  ];
+  return (
+    <div className="mt-8 flex justify-center gap-2 sm:gap-3">
+      {tabs.map((tab) => (
+        <Link
+          key={tab.key}
+          to={tab.href}
+          className={`px-6 py-2.5 rounded-full text-sm font-bold transition-all duration-200 ${
+            active === tab.key
+              ? "bg-[#00A86B] text-white shadow-md shadow-[#00A86B]/25"
+              : "bg-white text-slate-600 border border-slate-200 hover:border-[#00A86B] hover:text-[#00A86B]"
+          }`}
+        >
+          {tab.label}
+        </Link>
+      ))}
+    </div>
+  );
+}
+
 export default function CourseCatalog() {
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -60,6 +84,8 @@ export default function CourseCatalog() {
           <p className="text-slate-500 mt-2">
             Find the perfect course to advance your career
           </p>
+
+          <CatalogTabs active="courses" />
 
           <div className="mt-6 max-w-2xl mx-auto flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
@@ -120,6 +146,16 @@ export default function CourseCatalog() {
                       {course.level}
                     </span>
                   )}
+                  {Number(course.originalPrice) > Number(course.price || 0) && (
+                    <span className="absolute top-3 right-3 text-[10px] font-bold px-2.5 py-1 rounded-md bg-red-500 text-white shadow-sm">
+                      {Math.round(
+                        ((Number(course.originalPrice) - Number(course.price || 0)) /
+                          Number(course.originalPrice)) *
+                          100
+                      )}
+                      % OFF
+                    </span>
+                  )}
                 </div>
 
                 <div className="p-6 space-y-3">
@@ -147,9 +183,26 @@ export default function CourseCatalog() {
                   )}
 
                   <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
-                    <span className="text-xl font-black text-[#0B2545]">
-                      ₹{course.price || 0}
-                    </span>
+                    <div>
+                      <div className="flex items-baseline gap-2 flex-wrap">
+                        <span className="text-xl font-black text-[#0B2545]">
+                          ₹{course.price || 0}
+                        </span>
+                        {(Number(course.originalPrice) > Number(course.price || 0)) && (
+                          <span className="text-sm text-slate-400 line-through">
+                            ₹{Number(course.originalPrice).toLocaleString("en-IN")}
+                          </span>
+                        )}
+                      </div>
+                      {(Number(course.originalPrice) > Number(course.price || 0)) && (
+                        <span className="mt-0.5 inline-block text-xs font-bold text-[#00A86B]">
+                          Save ₹
+                          {(
+                            Number(course.originalPrice) - Number(course.price || 0)
+                          ).toLocaleString("en-IN")}
+                        </span>
+                      )}
+                    </div>
                     <span className="px-4 py-2 bg-emerald-50 text-[#00A86B] rounded-lg text-sm font-semibold">
                       View Course
                     </span>
