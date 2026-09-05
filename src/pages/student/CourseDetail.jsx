@@ -12,6 +12,16 @@ import {
   CheckCircle2,
   ShoppingCart,
   ExternalLink,
+  Target,
+  Award,
+  BadgeCheck,
+  Sparkles,
+  Users,
+  GraduationCap,
+  Rocket,
+  Briefcase,
+  ChevronsUpDown,
+  ChevronsDownUp,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import {
@@ -19,8 +29,11 @@ import {
   getModules,
   getLessons,
   getCourseModules,
+  getPublishedCourses,
 } from "../../api/courseService";
 import { getMockTests } from "../../api/mockTestService";
+import CourseCard from "../../components/CourseCard";
+import { enrichCourse } from "../../lib/staticCatalog";
 import {
   enrollInCourse,
   getEnrollment,
@@ -37,6 +50,77 @@ const levelLabels = {
 
 const PREVIEW_MODULE_COUNT = 3;
 
+const DEFAULT_LEARN = [
+  "Hands-on, project-based learning",
+  "Real-world industry case studies",
+  "Practical skills you can apply immediately",
+  "Career-ready interview preparation",
+  "Guidance from expert mentors",
+  "Verified certificate of completion",
+];
+
+const PREREQUISITES = {
+  BEGINNER: [
+    "No prior experience required",
+    "Basic computer literacy",
+    "A computer with internet access",
+    "Motivation and willingness to learn",
+  ],
+  INTERMEDIATE: [
+    "Basic knowledge of the subject area",
+    "Familiarity with core fundamentals",
+    "A computer with internet access",
+    "Consistent practice time",
+  ],
+  ADVANCED: [
+    "Solid foundation in core concepts",
+    "Prior hands-on experience",
+    "Comfortable with advanced tools",
+    "Ability to work on independent projects",
+  ],
+};
+
+const WHAT_YOU_GET = [
+  "Lifetime access to all content",
+  "Certificate of completion",
+  "Mock tests and practice exercises",
+  "Downloadable resources & notes",
+  "Expert Q&A support",
+  "Regular content updates",
+];
+
+const WHY_CHOOSE = [
+  "Learn from industry experts and real-world mentors",
+  "Project-based curriculum with live case studies",
+  "Recognized certifications trusted by employers",
+  "Dedicated career guidance and placement support",
+  "Flexible, self-paced learning on any device",
+  "Lifetime access with regular content updates",
+];
+
+const WHO_SHOULD_TAKE = [
+  {
+    icon: GraduationCap,
+    title: "Beginners & Students",
+    desc: "Just starting out and want a structured, guided path to mastery.",
+  },
+  {
+    icon: Briefcase,
+    title: "Working Professionals",
+    desc: "Looking to upskill, stay relevant and grow in your career.",
+  },
+  {
+    icon: Users,
+    title: "Career Switchers",
+    desc: "Moving into a new field and need hands-on, job-ready skills.",
+  },
+  {
+    icon: Rocket,
+    title: "Job Seekers",
+    desc: "Preparing for interviews and want a standout portfolio.",
+  },
+];
+
 export default function CourseDetail() {
   const { courseId } = useParams();
   const navigate = useNavigate();
@@ -49,10 +133,31 @@ export default function CourseDetail() {
   const [lessonsByModule, setLessonsByModule] = useState({});
   const [mockTestsByModule, setMockTestsByModule] = useState({});
   const [loading, setLoading] = useState(true);
-  const [expandedModule, setExpandedModule] = useState(null);
+  const [expandedModules, setExpandedModules] = useState(() => new Set());
   const [enrollment, setEnrollment] = useState(null);
   const [enrolling, setEnrolling] = useState(false);
   const [addingToCart, setAddingToCart] = useState(false);
+  const [activeTab, setActiveTab] = useState("overview");
+  const [relatedCourses, setRelatedCourses] = useState([]);
+
+  useEffect(() => {
+    let active = true;
+    getPublishedCourses()
+      .then(({ data }) => {
+        if (!active) return;
+        const courses = Array.isArray(data) ? data : [];
+        setRelatedCourses(
+          courses
+            .filter((c) => c.id != courseId)
+            .slice(0, 3)
+            .map(enrichCourse)
+        );
+      })
+      .catch((err) => console.error("Failed to load related items:", err));
+    return () => {
+      active = false;
+    };
+  }, [courseId]);
 
   // Paid courses must go through cart -> checkout -> Razorpay payment.
   // Direct enroll only works for free courses (EnrollmentController).
@@ -284,6 +389,53 @@ export default function CourseDetail() {
     (a, b) => (a.displayOrder || 0) - (b.displayOrder || 0)
   );
 
+  const toggleModule = (id) => {
+    setExpandedModules((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const expandAll = () => {
+    const ids = new Set();
+    sortedModules.forEach((m, index) => {
+      if (index < unlockedModules) ids.add(m.id);
+    });
+    sortedCourseLinks.forEach((cm) => ids.add(`cm:${cm.id}`));
+    setExpandedModules(ids);
+    sortedCourseLinks.forEach((cm) => {
+      if (!courseLinkContent[cm.id]?.loaded) loadCourseLinkContent(cm);
+    });
+  };
+
+  const collapseAll = () => setExpandedModules(new Set());
+
+  const curriculumCount = sortedModules.length + sortedCourseLinks.length;
+  const expandableIds = [
+    ...sortedModules.slice(0, unlockedModules).map((m) => m.id),
+    ...sortedCourseLinks.map((cm) => `cm:${cm.id}`),
+  ];
+  const allExpanded =
+    curriculumCount > 0 &&
+    expandableIds.every((id) => expandedModules.has(id));
+
+  const learnItems = (() => {
+    const fromModules = sortedModules
+      .map((m) => m.title)
+      .filter(Boolean);
+    const seen = new Set();
+    return [...fromModules, ...DEFAULT_LEARN]
+      .filter((item) => {
+        if (seen.has(item)) return false;
+        seen.add(item);
+        return true;
+      })
+      .slice(0, 6);
+  })();
+  const prerequisites = PREREQUISITES[course.level] || PREREQUISITES.BEGINNER;
+
   const enrollButtonLabel = !isAuthenticated
     ? "Enroll Now"
     : !isStudent
@@ -392,9 +544,33 @@ export default function CourseDetail() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid lg:grid-cols-3 gap-12">
-          <div className="lg:col-span-2 space-y-12">
-            {/* Overview */}
+        {/* Tabs */}
+        <div className="flex items-center gap-1 border-b border-slate-200">
+          <button
+            onClick={() => setActiveTab("overview")}
+            className={`px-5 py-3 text-sm font-bold border-b-2 transition-colors -mb-px ${
+              activeTab === "overview"
+                ? "border-[#00A86B] text-[#00A86B]"
+                : "border-transparent text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            Overview
+          </button>
+          <button
+            onClick={() => setActiveTab("curriculum")}
+            className={`px-5 py-3 text-sm font-bold border-b-2 transition-colors -mb-px ${
+              activeTab === "curriculum"
+                ? "border-[#00A86B] text-[#00A86B]"
+                : "border-transparent text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            Curriculum
+          </button>
+        </div>
+
+        {activeTab === "overview" ? (
+          <div className="mt-10 space-y-10">
+            {/* About This Course */}
             <section>
               <h2 className="text-xl font-bold text-[#0B2545] mb-4">
                 About This Course
@@ -404,29 +580,170 @@ export default function CourseDetail() {
               </div>
             </section>
 
+            {/* What You Will Learn */}
+            <section>
+              <h2 className="text-xl font-bold text-[#0B2545] mb-4 flex items-center gap-2">
+                <Target className="w-5 h-5 text-[#00A86B]" />
+                What You Will Learn
+              </h2>
+              <div className="grid sm:grid-cols-2 gap-3">
+                {learnItems.map((item) => (
+                  <div
+                    key={item}
+                    className="bg-white rounded-xl border border-slate-100 p-4 flex items-start gap-3 hover:border-[#00A86B]/40 transition-colors"
+                  >
+                    <CheckCircle2 className="w-5 h-5 text-[#00A86B] flex-shrink-0 mt-0.5" />
+                    <span className="text-sm text-slate-600">{item}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* Course Prerequisites */}
+            <section>
+              <h2 className="text-xl font-bold text-[#0B2545] mb-4 flex items-center gap-2">
+                <ClipboardList className="w-5 h-5 text-[#00A86B]" />
+                Course Prerequisites
+              </h2>
+              <div className="bg-white rounded-2xl border border-slate-100 p-6 grid sm:grid-cols-2 gap-3">
+                {prerequisites.map((item) => (
+                  <div
+                    key={item}
+                    className="flex items-start gap-3 text-sm text-slate-600"
+                  >
+                    <ChevronRight className="w-4 h-4 text-[#00A86B] flex-shrink-0 mt-0.5" />
+                    {item}
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* Who Should Take This Course */}
+            <section>
+              <h2 className="text-xl font-bold text-[#0B2545] mb-4 flex items-center gap-2">
+                <Users className="w-5 h-5 text-[#00A86B]" />
+                Who Should Take This Course?
+              </h2>
+              <div className="grid sm:grid-cols-2 gap-3">
+                {WHO_SHOULD_TAKE.map(({ icon: Icon, title, desc }) => (
+                  <div
+                    key={title}
+                    className="bg-white rounded-2xl border border-slate-100 p-5 hover:border-[#00A86B]/40 hover:shadow-sm transition-all duration-200"
+                  >
+                    <div className="w-10 h-10 bg-teal-50 text-[#00A86B] rounded-xl flex items-center justify-center mb-3">
+                      <Icon className="w-5 h-5" />
+                    </div>
+                    <h3 className="font-bold text-[#0B2545] mb-1">{title}</h3>
+                    <p className="text-sm text-slate-500 leading-relaxed">
+                      {desc}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* Why Choose Foliopath360? */}
+            <section>
+              <h2 className="text-xl font-bold text-[#0B2545] mb-4 flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-[#00A86B]" />
+                Why Choose Foliopath360?
+              </h2>
+              <div className="grid sm:grid-cols-2 gap-3">
+                {WHY_CHOOSE.map((item) => (
+                  <div
+                    key={item}
+                    className="bg-gradient-to-br from-[#0B2545]/[0.03] to-transparent rounded-xl border border-slate-100 p-4 flex items-start gap-3"
+                  >
+                    <BadgeCheck className="w-5 h-5 text-[#00A86B] flex-shrink-0 mt-0.5" />
+                    <span className="text-sm text-slate-600">{item}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* What You Get */}
+            <section>
+              <h2 className="text-xl font-bold text-[#0B2545] mb-4 flex items-center gap-2">
+                <Award className="w-5 h-5 text-[#00A86B]" />
+                What You Get
+              </h2>
+              <div className="grid sm:grid-cols-2 gap-3">
+                {WHAT_YOU_GET.map((item) => (
+                  <div
+                    key={item}
+                    className="bg-gradient-to-br from-teal-50 to-emerald-50 rounded-xl border border-[#00A86B]/15 p-4 flex items-start gap-3"
+                  >
+                    <BadgeCheck className="w-5 h-5 text-[#00A86B] flex-shrink-0 mt-0.5" />
+                    <span className="text-sm font-medium text-slate-700">
+                      {item}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* Related Courses */}
+            <section>
+              <h2 className="text-xl font-bold text-[#0B2545] mb-4 flex items-center gap-2">
+                <BookOpen className="w-5 h-5 text-[#00A86B]" />
+                Related Courses
+              </h2>
+              {relatedCourses.length > 0 ? (
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {relatedCourses.map((relCourse) => (
+                    <CourseCard key={relCourse.id} course={relCourse} />
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-white rounded-2xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-400">
+                  No related courses yet
+                </div>
+              )}
+            </section>
+          </div>
+        ) : (
+          <div className="mt-10 space-y-3">
+
             {/* Curriculum */}
             <section>
-              <h2 className="text-xl font-bold text-[#0B2545] mb-1">
-                Curriculum
-              </h2>
-              <p className="text-xs text-slate-500 mb-4">
-                {isEnrolled ? (
-                  "All modules unlocked — start learning!"
-                ) : (
-                  <>
-                    Free preview:{" "}
-                    <span className="font-semibold text-[#00A86B]">
-                      first {PREVIEW_MODULE_COUNT} modules
-                    </span>{" "}
-                    — enroll to unlock all content
-                  </>
+              <div className="flex items-start justify-between flex-wrap gap-3 mb-4">
+                <div>
+                  <h2 className="text-xl font-bold text-[#0B2545]">
+                    Curriculum
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {isEnrolled ? (
+                      "All modules unlocked — start learning!"
+                    ) : (
+                      <>
+                        Free preview:{" "}
+                        <span className="font-semibold text-[#00A86B]">
+                          first {PREVIEW_MODULE_COUNT} modules
+                        </span>{" "}
+                        — enroll to unlock all content
+                      </>
+                    )}
+                  </p>
+                </div>
+                {curriculumCount > 0 && (
+                  <button
+                    onClick={allExpanded ? collapseAll : expandAll}
+                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#008f5a] border border-[#00A86B]/30 bg-[#00A86B]/5 hover:bg-[#00A86B]/10 px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    {allExpanded ? (
+                      <ChevronsDownUp className="w-4 h-4" />
+                    ) : (
+                      <ChevronsUpDown className="w-4 h-4" />
+                    )}
+                    {allExpanded ? "Collapse All" : "Expand All"}
+                  </button>
                 )}
-              </p>
+              </div>
               <div className="space-y-3">
                 {sortedModules.map((mod, index) => {
                   const lessons = lessonsByModule[mod.id] || [];
                   const locked = index >= unlockedModules;
-                  const isExpanded = expandedModule === mod.id;
+                  const isExpanded = expandedModules.has(mod.id);
                   return (
                     <div
                       key={mod.id}
@@ -440,7 +757,7 @@ export default function CourseDetail() {
                             promptEnroll();
                             return;
                           }
-                          setExpandedModule(isExpanded ? null : mod.id);
+                          toggleModule(mod.id);
                         }}
                         className="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-colors text-left"
                       >
@@ -550,7 +867,7 @@ export default function CourseDetail() {
                 })}
 
                 {sortedCourseLinks.map((cm) => {
-                  const isExpanded = expandedModule === `cm:${cm.id}`;
+                  const isExpanded = expandedModules.has(`cm:${cm.id}`);
                   const content = courseLinkContent[cm.id];
                   const linkedMods = content?.modules || [];
                   const linkLessonsCount = linkedMods.reduce(
@@ -564,12 +881,9 @@ export default function CourseDetail() {
                     >
                       <button
                         onClick={() => {
-                          if (!isExpanded) {
-                            setExpandedModule(`cm:${cm.id}`);
-                            if (!content?.loaded) loadCourseLinkContent(cm);
-                          } else {
-                            setExpandedModule(null);
-                          }
+                          toggleModule(`cm:${cm.id}`);
+                          if (!expandedModules.has(`cm:${cm.id}`) && !content?.loaded)
+                            loadCourseLinkContent(cm);
                         }}
                         className="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-colors text-left"
                       >
@@ -737,8 +1051,8 @@ export default function CourseDetail() {
                 </div>
               )}
             </section>
-          </div>
         </div>
+        )}
       </div>
     </div>
   );

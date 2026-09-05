@@ -18,6 +18,8 @@ import AdminCourseContent from "./pages/admin/AdminCourseContent";
 import AdminMockTest from "./pages/admin/AdminMockTest";
 import CourseCatalog from "./pages/student/CourseCatalog";
 import CourseDetail from "./pages/student/CourseDetail";
+import KitCatalog from "./pages/KitCatalog";
+import KitDetail from "./pages/KitDetail";
 import StudentShell from "./pages/student/StudentShell";
 import StudentDashboard from "./pages/student/StudentDashboard";
 import CartPage from "./pages/student/CartPage";
@@ -58,6 +60,8 @@ function App() {
           <Route path="/contact" element={<ContactUsPage />} />
           <Route path="/courses" element={<CourseCatalog />} />
           <Route path="/courses/:courseId" element={<CourseDetail />} />
+          <Route path="/interview-kits" element={<KitCatalog />} />
+          <Route path="/interview-kits/:kitId" element={<KitDetail />} />
 
           {/* Super Admin / Admin — nested under AdminShell layout */}
           <Route

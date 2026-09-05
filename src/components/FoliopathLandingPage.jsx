@@ -14,9 +14,9 @@ export default function FoliopathLandingPage() {
       <main>
         <Hero />
         <Features />
+        <Courses />
         <WhyDifferent />
         <LearnerOutcomes />
-        <Courses />
       </main>
       <Footer />
     </div>
