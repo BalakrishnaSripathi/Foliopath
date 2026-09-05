@@ -24,6 +24,8 @@ import {
   updateKitQuestion,
   deleteKitQuestion,
   addKitModule,
+  attachKitModule,
+  getAllExistingModules,
   updateKitModule,
   deleteKitModule,
   reorderKitModules,
@@ -278,7 +280,7 @@ function QuestionForm({ initial, isEdit, onSave, onCancel, modules, selectedModu
 
 // ─── Module Form ────────────────────────────────────────────────────
 
-function ModuleForm({ initial, isEdit, onSave, onCancel }) {
+function ModuleForm({ initial, isEdit, onSave, onCancel, shared }) {
   const [name, setName] = useState(initial?.name || "");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -317,6 +319,11 @@ function ModuleForm({ initial, isEdit, onSave, onCancel }) {
           {error}
         </div>
       )}
+      {shared && (
+        <div className="p-2 bg-indigo-50 border border-indigo-200 rounded-lg text-xs text-indigo-600">
+          This module is shared across multiple kits. Editing it will reflect in every kit that uses it.
+        </div>
+      )}
       <div>
         <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Module Name *</label>
         <input
@@ -341,6 +348,91 @@ function ModuleForm({ initial, isEdit, onSave, onCancel }) {
           {saving ? "Saving..." : isEdit ? "Update" : "Add Module"}
         </button>
       </div>
+    </div>
+  );
+}
+
+// ─── Existing Module Picker ─────────────────────────────────────────
+
+function ExistingModulePicker({ kitModules, onAttach, onClose }) {
+  const [existing, setExisting] = useState(null);
+  const [selected, setSelected] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const attachedIds = new Set((kitModules || []).map((m) => m.id));
+  const candidates = (existing || []).filter((m) => !attachedIds.has(m.id));
+
+  const inputCls =
+    "w-full px-3 py-2 text-sm bg-slate-50 rounded-xl border border-slate-200 focus:border-[#00A86B] focus:bg-white focus:outline-none transition-all duration-200";
+
+  const load = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const { data } = await getAllExistingModules();
+      setExisting(Array.isArray(data) ? data : []);
+    } catch {
+      setError("Failed to load reusable modules");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div className="mb-4 border border-slate-200 rounded-xl bg-slate-50 p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-bold text-[#0B2545]">Link Existing Module</h3>
+        <button onClick={onClose} className="text-xs text-slate-400 hover:text-slate-600">
+          Cancel
+        </button>
+      </div>
+      {error && (
+        <div className="p-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-600">
+          {error}
+        </div>
+      )}
+      {loading ? (
+        <div className="py-4 text-center text-xs text-slate-400">Loading modules...</div>
+      ) : candidates.length === 0 ? (
+        <div className="py-4 text-center text-xs text-slate-400">
+          {existing && existing.length === 0
+            ? "No modules exist yet. Create a new module first."
+            : "Every module is already linked to this kit."}
+        </div>
+      ) : (
+        <>
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Select Module</label>
+            <select value={selected} onChange={(e) => setSelected(e.target.value)} className={inputCls}>
+              <option value="">Choose a module...</option>
+              {candidates.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name} · {m.questionCount || 0} question{(m.questionCount || 0) !== 1 ? "s" : ""}
+                  {Number(m.kitsCount) > 0 ? ` · used in ${m.kitsCount} kit${Number(m.kitsCount) !== 1 ? "s" : ""}` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex justify-end gap-2">
+            <button onClick={onClose} className="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:text-slate-700 transition-colors">
+              Cancel
+            </button>
+            <button
+              onClick={() => selected && onAttach(selected)}
+              disabled={!selected}
+              className="px-4 py-1.5 bg-[#0B2545] hover:bg-[#0a1e38] text-white text-xs font-bold rounded-lg shadow-md transition-all duration-200 disabled:opacity-60"
+            >
+              Link to Kit
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -406,6 +498,8 @@ export default function KitQuestionsModal({ kit, onClose }) {
 
   // Module state
   const [showModuleForm, setShowModuleForm] = useState(false);
+  const [showModulePicker, setShowModulePicker] = useState(false);
+  const [showModuleMenu, setShowModuleMenu] = useState(false);
   const [editingModule, setEditingModule] = useState(null);
   const [expandedModules, setExpandedModules] = useState({});
   const [selectedModuleId, setSelectedModuleId] = useState(null);
@@ -447,6 +541,17 @@ export default function KitQuestionsModal({ kit, onClose }) {
     }
   };
 
+  const handleAttachModule = async (moduleId) => {
+    try {
+      await attachKitModule(kit.id, moduleId);
+      toast.success("Module linked to this kit.");
+      setShowModulePicker(false);
+      loadKit();
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to link module");
+    }
+  };
+
   const handleUpdateModule = async (moduleId, form) => {
     try {
       await updateKitModule(kit.id, moduleId, form);
@@ -458,23 +563,27 @@ export default function KitQuestionsModal({ kit, onClose }) {
   };
 
   const handleDeleteModule = (mod) => {
+    const sharedCount = Number(mod?.kitsCount) || 1;
     setDeleteModal({
       type: "kitmodule",
-      title: "Delete Module",
+      title: "Remove Module from Kit",
       entityName: mod?.name || "Module",
       entityType: "module",
       metaFields: [
         { label: "Module ID", value: `${mod?.id || ""}` },
         { label: "Questions in Module", value: (mod?.questions || []).length > 0 ? `${(mod?.questions || []).length}` : "" },
+        ...(sharedCount > 1 ? [{ label: "Used in Kits", value: `${sharedCount}` }] : []),
       ],
       description:
-        "Are you sure you want to delete this module? Questions inside will be moved to unassigned. This action cannot be undone.",
+        sharedCount > 1
+          ? `This module is used by ${sharedCount} kit${sharedCount !== 1 ? "s" : ""}. Removing it only unlinks it from "${kit.name}" — the module and its questions stay available for other kits. No content is deleted.`
+          : `Remove this module from "${kit.name}"? The module and its questions will be deleted since no other kit uses it.`,
       onConfirm: async () => {
         try {
           await deleteKitModule(kit.id, mod.id);
           loadKit();
           setDeleteModal(null);
-          toast.success(`Module "${mod?.name || ""}" was deleted successfully.`);
+          toast.success(`Module removed from "${kit.name}".`);
         } catch (err) {
           throw new Error(mapDeleteError("module", err));
         }
@@ -487,7 +596,7 @@ export default function KitQuestionsModal({ kit, onClose }) {
     try {
       await reorderKitModules(
         kit.id,
-        newModules.map((m, i) => ({ name: m.name, displayOrder: i + 1 }))
+        newModules.map((m) => m.id)
       );
     } catch (err) {
       console.error("Failed to reorder modules:", err);
@@ -654,23 +763,75 @@ export default function KitQuestionsModal({ kit, onClose }) {
             <>
               {/* Action Buttons */}
               <div className="flex gap-2 mb-4">
-                <button
-                  onClick={() => {
-                    setShowModuleForm(!showModuleForm);
-                    setEditingModule(null);
-                    setShowAddForm(false);
-                    setEditingQuestion(null);
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-[#0B2545] hover:bg-[#0a1e38] text-white shadow-md transition-all duration-150 active:scale-95"
-                >
-                  <Plus className="w-4 h-4" /> Add Module
-                </button>
+                <div className="relative">
+                  <button
+                    onClick={() => {
+                      setShowModuleMenu(!showModuleMenu);
+                      setShowModulePicker(false);
+                      setShowModuleForm(false);
+                      setEditingModule(null);
+                      setShowAddForm(false);
+                      setEditingQuestion(null);
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-[#0B2545] hover:bg-[#0a1e38] text-white shadow-md transition-all duration-150 active:scale-95"
+                  >
+                    <Plus className="w-4 h-4" /> Add Module <ChevronDown className="w-4 h-4" />
+                  </button>
+                  {showModuleMenu && (
+                    <div
+                      className="absolute top-full left-0 mt-2 w-64 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden z-10"
+                      onMouseLeave={() => setShowModuleMenu(false)}
+                    >
+                      <button
+                        onClick={() => {
+                          setShowModuleMenu(false);
+                          setShowModuleForm(true);
+                          setEditingModule(null);
+                          setShowModulePicker(false);
+                          setShowAddForm(false);
+                          setEditingQuestion(null);
+                        }}
+                        className="flex items-start gap-3 w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors"
+                      >
+                        <span className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ color: "#00A86B", background: "#00A86B15" }}>
+                          <Plus className="w-4 h-4" />
+                        </span>
+                        <span>
+                          <span className="block text-sm font-bold text-[#0B2545]">New Module</span>
+                          <span className="block text-xs text-slate-400">Create a fresh module for this kit</span>
+                        </span>
+                      </button>
+                      <div className="h-px bg-slate-100" />
+                      <button
+                        onClick={() => {
+                          setShowModuleMenu(false);
+                          setShowModulePicker(true);
+                          setShowModuleForm(false);
+                          setEditingModule(null);
+                          setShowAddForm(false);
+                          setEditingQuestion(null);
+                        }}
+                        className="flex items-start gap-3 w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors"
+                      >
+                        <span className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ color: "#0B2545", background: "#0B254515" }}>
+                          <FolderOpen className="w-4 h-4" />
+                        </span>
+                        <span>
+                          <span className="block text-sm font-bold text-[#0B2545]">Link Existing Module</span>
+                          <span className="block text-xs text-slate-400">Reuse a module already used in another kit</span>
+                        </span>
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <button
                   onClick={() => {
                     setShowAddForm(!showAddForm);
                     setEditingQuestion(null);
                     setShowModuleForm(false);
                     setEditingModule(null);
+                    setShowModulePicker(false);
+                    setShowModuleMenu(false);
                     setSelectedModuleId(null);
                   }}
                   className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-[#00A86B] hover:bg-[#008f5a] text-white shadow-md transition-all duration-150 active:scale-95"
@@ -679,11 +840,21 @@ export default function KitQuestionsModal({ kit, onClose }) {
                 </button>
               </div>
 
+              {/* Existing Module Picker */}
+              {showModulePicker && (
+                <ExistingModulePicker
+                  kitModules={modules}
+                  onAttach={handleAttachModule}
+                  onClose={() => setShowModulePicker(false)}
+                />
+              )}
+
               {/* Module Form */}
               {showModuleForm && (
                 <ModuleForm
                   initial={editingModule}
                   isEdit={!!editingModule}
+                  shared={Number(editingModule?.kitsCount || 0) > 1}
                   onSave={
                     editingModule
                       ? (form) => handleUpdateModule(editingModule.id, form)
@@ -751,6 +922,11 @@ export default function KitQuestionsModal({ kit, onClose }) {
                           <span className="text-sm font-bold text-[#0B2545] flex-1 truncate">
                             {mod.name}
                           </span>
+                          {Number(mod.kitsCount) > 1 && (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 shrink-0">
+                              Shared · {mod.kitsCount} kits
+                            </span>
+                          )}
                           <span className="text-xs font-mono text-slate-400 shrink-0">
                             {(mod.questions || []).length} question{(mod.questions || []).length !== 1 ? "s" : ""}
                           </span>
@@ -759,6 +935,8 @@ export default function KitQuestionsModal({ kit, onClose }) {
                               onClick={() => {
                                 setEditingModule(mod);
                                 setShowModuleForm(true);
+                                setShowModulePicker(false);
+                                setShowModuleMenu(false);
                                 setShowAddForm(false);
                                 setEditingQuestion(null);
                               }}
@@ -782,6 +960,8 @@ export default function KitQuestionsModal({ kit, onClose }) {
                                 setSelectedModuleId(mod.id);
                                 setEditingQuestion(null);
                                 setShowModuleForm(false);
+                                setShowModulePicker(false);
+                                setShowModuleMenu(false);
                               }}
                               title="Add Question to Module"
                               className="w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-150 hover:opacity-80"
@@ -821,6 +1001,7 @@ export default function KitQuestionsModal({ kit, onClose }) {
                                     setEditingQuestion(q);
                                     setShowAddForm(false);
                                     setShowModuleForm(false);
+                                    setShowModuleMenu(false);
                                   }}
                                   onDelete={() => handleDeleteQuestion(q)}
                                 />
@@ -854,6 +1035,7 @@ export default function KitQuestionsModal({ kit, onClose }) {
                               setEditingQuestion(q);
                               setShowAddForm(false);
                               setShowModuleForm(false);
+                              setShowModuleMenu(false);
                             }}
                             onDelete={() => handleDeleteQuestion(q)}
                           />

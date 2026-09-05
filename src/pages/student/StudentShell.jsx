@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Outlet, useNavigate, useLocation } from "react-router-dom";
+import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import {
   Home,
   BookOpen,
@@ -29,15 +29,9 @@ const NAV_ITEMS = [
 export default function StudentShell() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const firstName = user?.firstName || "Student";
-
-  const isActive = (path) => {
-    if (path === "/StudentDashboard") return location.pathname === "/StudentDashboard" || location.pathname === "/my-courses";
-    return location.pathname.startsWith(path);
-  };
 
   return (
     <div style={{ fontFamily: "'Inter', sans-serif" }} className="flex h-screen w-full bg-slate-50 overflow-hidden">
@@ -58,18 +52,23 @@ export default function StudentShell() {
 
         <nav className="flex-1 px-3 py-4 overflow-y-auto space-y-0.5">
           {NAV_ITEMS.map(({ icon: Icon, label, path, badge }) => (
-            <button
+            <NavLink
               key={path}
-              onClick={() => { navigate(path); setSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-150
-                ${isActive(path) ? "bg-[#00A86B] text-white font-medium" : "text-slate-400 hover:bg-white/5 hover:text-white"}`}
+              to={path}
+              end={path === "/StudentDashboard"}
+              onClick={() => setSidebarOpen(false)}
+              className={({ isActive }) =>
+                `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-150 ${
+                  isActive ? "bg-[#00A86B] text-white font-medium" : "text-slate-400 hover:bg-white/5 hover:text-white"
+                }`
+              }
             >
               <Icon size={16} />
               <span>{label}</span>
               {badge > 0 && (
                 <span className="ml-auto bg-rose-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">{badge}</span>
               )}
-            </button>
+            </NavLink>
           ))}
         </nav>
 

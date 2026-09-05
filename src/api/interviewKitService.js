@@ -96,11 +96,19 @@ export const getKitModules = (kitId) => {
   return api.get(`/api/interview-kits/${kitId}/modules`);
 };
 
+export const getAllExistingModules = () => {
+  return api.get("/api/interview-kits/existing-modules");
+};
+
 export const addKitModule = (kitId, data) => {
   return api.post(`/api/interview-kits/${kitId}/modules`, {
     name: data.name,
     displayOrder: Number(data.displayOrder) || 0,
   });
+};
+
+export const attachKitModule = (kitId, moduleId) => {
+  return api.post(`/api/interview-kits/${kitId}/modules/${moduleId}/attach`);
 };
 
 export const updateKitModule = (kitId, moduleId, data) => {
@@ -114,8 +122,8 @@ export const deleteKitModule = (kitId, moduleId) => {
   return api.delete(`/api/interview-kits/${kitId}/modules/${moduleId}`);
 };
 
-export const reorderKitModules = (kitId, modules) => {
-  return api.put(`/api/interview-kits/${kitId}/modules/reorder`, modules);
+export const reorderKitModules = (kitId, moduleIds) => {
+  return api.put(`/api/interview-kits/${kitId}/modules/reorder`, moduleIds);
 };
 
 export const reorderKitQuestions = (kitId, questionIds) => {

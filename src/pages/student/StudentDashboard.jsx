@@ -3,6 +3,7 @@ import { useNavigate, useLocation, useParams } from "react-router-dom";
 import {
   Home,
   BookOpen,
+  BookOpenCheck,
   Briefcase,
   BarChart3,
   Award,
@@ -26,9 +27,9 @@ import {
   Search,
   Code,
   FileText,
+  NotebookPen,
   ChevronDown,
   ChevronRight,
-  ExternalLink,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { getMyEnrollments, getEnrollment } from "../../api/enrollmentService";
@@ -262,7 +263,7 @@ function InlineMockTestView({ mockTestId, onBack }) {
 
   return (
     <div>
-      <button onClick={() => onBack("my-courses")} className="flex items-center gap-2 text-sm text-slate-500 hover:text-[#00A86B] mb-4 transition-colors">
+      <button onClick={() => onBack("course")} className="flex items-center gap-2 text-sm text-slate-500 hover:text-[#00A86B] mb-4 transition-colors">
         <ArrowLeft size={16} /> Back
       </button>
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 mb-6">
@@ -413,13 +414,12 @@ export default function StudentDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const { moduleId, lessonId, mockTestId } = useParams();
+  const { courseId: routeCourseId, moduleId, lessonId, mockTestId } = useParams();
 
   const [enrollments, setEnrollments] = useState([]);
   const [publishedCourses, setPublishedCourses] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const [selectedCourseId, setSelectedCourseId] = useState(null);
   const [courseDetail, setCourseDetail] = useState(null);
   const [courseModules, setCourseModules] = useState([]);
   const [courseLinks, setCourseLinks] = useState([]);
@@ -427,6 +427,7 @@ export default function StudentDashboard() {
   const [lessonsByModule, setLessonsByModule] = useState({});
   const [mockTestsByModule, setMockTestsByModule] = useState({});
   const [courseLoading, setCourseLoading] = useState(false);
+  const [courseLoadFailed, setCourseLoadFailed] = useState(false);
   const [expandedModule, setExpandedModule] = useState(null);
   const [courseEnrollment, setCourseEnrollment] = useState(null);
 
@@ -469,9 +470,9 @@ export default function StudentDashboard() {
     }
   };
 
-  const openCourseDetail = useCallback(async (courseId) => {
-    setSelectedCourseId(courseId);
+  const loadCourseDetail = useCallback(async (courseId) => {
     setCourseLoading(true);
+    setCourseLoadFailed(false);
     setCourseDetail(null);
     setCourseModules([]);
     setCourseLinks([]);
@@ -480,11 +481,6 @@ export default function StudentDashboard() {
     setMockTestsByModule({});
     setExpandedModule(null);
     setCourseEnrollment(null);
-    setInlineLesson(null);
-    setInlineMockTest(null);
-    setInlineMockResult(null);
-    setSelectedKit(null);
-    setKitDetail(null);
     try {
       const [courseRes, modulesRes] = await Promise.all([getCourseById(courseId), getModules(courseId)]);
       setCourseDetail(courseRes.data);
@@ -504,11 +500,36 @@ export default function StudentDashboard() {
       setMockTestsByModule(Object.fromEntries(results.map(([id, v]) => [id, v.mockTests])));
     } catch (err) {
       console.error("Failed to load course:", err);
+      setCourseLoadFailed(true);
       toast.error("Failed to load course");
     } finally {
       setCourseLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (routeCourseId) {
+      loadCourseDetail(routeCourseId);
+    } else {
+      setCourseLoading(false);
+      setCourseLoadFailed(false);
+      setCourseDetail(null);
+      setCourseModules([]);
+      setCourseLinks([]);
+      setCourseLinkContent({});
+      setLessonsByModule({});
+      setMockTestsByModule({});
+      setExpandedModule(null);
+      setCourseEnrollment(null);
+      setInlineLesson(null);
+      setInlineMockTest(null);
+      setInlineMockResult(null);
+    }
+  }, [routeCourseId, loadCourseDetail]);
+
+  const openCourseDetail = useCallback((courseId) => {
+    navigate(`/StudentDashboard/my-courses/${courseId}`);
+  }, [navigate]);
 
   const loadCourseLinkContent = useCallback(async (courseLink) => {
     if (courseLinkContent[courseLink.id]) return;
@@ -537,8 +558,6 @@ export default function StudentDashboard() {
     setSelectedKit(kitId);
     setKitLoading(true);
     setKitDetail(null);
-    setSelectedCourseId(null);
-    setCourseDetail(null);
     try {
       const { data } = await getKitById(kitId);
       setKitDetail(data);
@@ -590,8 +609,11 @@ export default function StudentDashboard() {
       setInlineLesson(null);
       setInlineMockTest(null);
       setInlineMockResult(null);
-      setSelectedCourseId(null);
       navigate("/StudentDashboard/my-courses");
+    } else if (type === "course") {
+      setInlineLesson(null);
+      setInlineMockTest(null);
+      setInlineMockResult(null);
     } else if (type === "lesson") {
       setInlineLesson({ moduleId: id.moduleId, lessonId: id.lessonId });
       setInlineMockTest(null);
@@ -717,7 +739,7 @@ export default function StudentDashboard() {
   if (inlineLesson) {
     return (
       <div className="p-6">
-        <InlineLessonView moduleId={inlineLesson.moduleId} lessonId={inlineLesson.lessonId} onBack={() => handleInlineNav("my-courses")} />
+        <InlineLessonView moduleId={inlineLesson.moduleId} lessonId={inlineLesson.lessonId} onBack={() => handleInlineNav("course")} />
       </div>
     );
   }
@@ -736,14 +758,14 @@ export default function StudentDashboard() {
     );
   }
 
-  /* ── Course Detail (state-based from clicking course cards) ─── */
-  if (selectedCourseId) {
+  /* ── Course Detail (URL-driven via /StudentDashboard/my-courses/:courseId) ─── */
+  if (routeCourseId) {
     return (
       <div className="p-6 space-y-6">
-        <button onClick={() => setSelectedCourseId(null)} className="flex items-center gap-2 text-sm text-slate-500 hover:text-[#00A86B] transition-colors">
+        <button onClick={() => navigate("/StudentDashboard/my-courses")} className="flex items-center gap-2 text-sm text-slate-500 hover:text-[#00A86B] transition-colors">
           <ArrowLeft size={16} /> Back to {isMyCourses ? "My Courses" : "Dashboard"}
         </button>
-        {courseLoading ? (
+        {courseLoading || (!courseDetail && !courseLoadFailed) ? (
           <div className="flex items-center justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#00A86B]" /></div>
         ) : courseDetail ? (
           <div className="space-y-6">
@@ -781,19 +803,30 @@ export default function StudentDashboard() {
                       </button>
                       {isExpanded && (
                         <div className="border-t border-slate-100 bg-slate-50/50">
-                          {[...lessons].sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0)).map((lesson) => (
-                            <button key={lesson.id} onClick={() => handleInlineNav("lesson", { moduleId: mod.id, lessonId: lesson.id })} className="w-full flex items-center gap-3 px-6 py-3 hover:bg-slate-100 transition-colors text-left border-b border-slate-100 last:border-0">
-                              <PlayCircle className="w-4 h-4 text-[#00A86B] flex-shrink-0" />
-                              <span className="text-sm text-slate-600">{lesson.title}</span>
-                              {lesson.estimatedMinutes && <span className="text-xs text-slate-400 ml-auto">{lesson.estimatedMinutes} min</span>}
-                            </button>
-                          ))}
+                          {lessons.length > 0 && (
+                            <>
+                              <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide px-6 pt-3 pb-1 flex items-center gap-1.5">
+                                {/* <BookOpenCheck className="w-3.5 h-3.5 text-[#00A86B]" /> Lessons */}
+                                Lessons
+                              </p>
+                              {[...lessons].sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0)).map((lesson) => (
+                                <button key={lesson.id} onClick={() => handleInlineNav("lesson", { moduleId: mod.id, lessonId: lesson.id })} className="w-full flex items-center gap-3 px-6 py-3 hover:bg-slate-100 transition-colors text-left border-b border-slate-100 last:border-0">
+                                  <BookOpenCheck className="w-4 h-4 text-[#00A86B] flex-shrink-0" />
+                                  <span className="text-sm text-slate-600">{lesson.title}</span>
+                                  {lesson.estimatedMinutes && <span className="text-xs text-slate-400 ml-auto">{lesson.estimatedMinutes} min</span>}
+                                </button>
+                              ))}
+                            </>
+                          )}
                           {tests.length > 0 && (
                             <>
-                              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide px-6 pt-3 pb-1">Mock Tests</p>
-                                {[...tests].sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0)).map((test) => (
+                              <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide px-6 pt-3 pb-1 flex items-center gap-1.5">
+                                {/* <NotebookPen className="w-3.5 h-3.5 text-blue-600" /> Mock Tests */}
+                                Mock Tests
+                              </p>
+                              {[...tests].sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0)).map((test) => (
                                 <button key={test.id} onClick={() => handleInlineNav("test", test.id)} className="w-full flex items-center gap-3 px-6 py-3 hover:bg-slate-100 transition-colors text-left border-b border-slate-100 last:border-0">
-                                  <ClipboardList className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                                  <NotebookPen className="w-4 h-4 text-blue-600 flex-shrink-0" />
                                   <span className="text-sm text-slate-600">{test.title}</span>
                                   <span className="text-xs text-slate-400 ml-auto">{(test.questions || []).length} questions</span>
                                 </button>
@@ -822,12 +855,7 @@ export default function StudentDashboard() {
                             <span className="text-xs font-semibold text-[#008f5a]">Type: Existing Course</span>
                           </div>
                         </div>
-                        <div className="flex items-center gap-3 flex-shrink-0">
-                          <button onClick={(e) => { e.stopPropagation(); openCourseDetail(cm.courseId); }} className="text-xs font-semibold text-blue-600 hover:underline flex items-center gap-1">
-                            <ExternalLink className="w-3 h-3" /> Open course
-                          </button>
-                          <span className="text-xs text-slate-400">{content?.loaded ? `${linkedMods.length} module${linkedMods.length === 1 ? "" : "s"} · ${linkLessonsCount} lessons` : "click to load"}</span>
-                        </div>
+                        <span className="text-xs text-slate-400 flex-shrink-0">{content?.loaded ? `${linkedMods.length} module${linkedMods.length === 1 ? "" : "s"} · ${linkLessonsCount} lessons` : ""}</span>
                       </button>
                       {isExpanded && (
                         <div className="border-t border-[#00A86B]/20">
@@ -842,19 +870,31 @@ export default function StudentDashboard() {
                                   <span className="text-xs px-1.5 py-0.5 bg-[#00A86B]/10 text-[#008f5a] rounded flex-shrink-0 font-semibold">Module {mod.displayOrder}: {mod.title}</span>
                                   <span className="text-xs text-slate-400">{cLessons.length} lessons{cTests.length > 0 ? ` · ${cTests.length} mock test${cTests.length === 1 ? "" : "s"}` : ""}</span>
                                 </div>
+                                {cLessons.length > 0 && (
+                                  <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide mt-3 mb-1 flex items-center gap-1.5">
+                                    {/* <BookOpenCheck className="w-3.5 h-3.5 text-[#00A86B]" /> Lessons */}
+                                    Lessons
+                                  </p>
+                                )}
                                 {cLessons.map((lesson) => (
                                   <button key={lesson.id} onClick={() => handleInlineNav("lesson", { moduleId: mod.id, lessonId: lesson.id })} className="w-full flex items-center gap-3 px-4 py-2 hover:bg-slate-50 transition-colors text-left">
-                                    <PlayCircle className="w-4 h-4 text-[#00A86B] flex-shrink-0" />
+                                    <BookOpenCheck className="w-4 h-4 text-[#00A86B] flex-shrink-0" />
                                     <span className="text-sm text-slate-600">{lesson.title}</span>
                                     {lesson.estimatedMinutes && <span className="text-xs text-slate-400 ml-auto">{lesson.estimatedMinutes} min</span>}
                                   </button>
                                 ))}
-                                {cTests.length > 0 && <div className="pt-2">{cTests.map((test) => (
+                                {cTests.length > 0 && (
+                                  <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide mt-3 mb-1 flex items-center gap-1.5">
+                                    {/* <NotebookPen className="w-3.5 h-3.5 text-blue-600" /> Mock Tests */}
+                                     Mock Tests
+                                  </p>
+                                )}
+                                {cTests.length > 0 && cTests.map((test) => (
                                   <button key={test.id} onClick={() => handleInlineNav("test", test.id)} className="w-full flex items-center gap-3 px-4 py-2 hover:bg-slate-50 transition-colors text-left">
-                                    <ClipboardList className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                                    <NotebookPen className="w-4 h-4 text-blue-600 flex-shrink-0" />
                                     <span className="text-sm text-slate-600">{test.title}</span>
                                   </button>
-                                ))}</div>}
+                                ))}
                               </div>
                             );
                           })}
@@ -968,7 +1008,7 @@ export default function StudentDashboard() {
             <button onClick={() => navigate("/courses")} className="inline-flex items-center gap-2 bg-[#00A86B] hover:bg-[#008f5a] text-white font-semibold px-6 py-3 rounded-xl shadow-md hover:shadow-lg transition-all duration-200">Explore Courses</button>
           </div>
         )}
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        {/* <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           <div className="xl:col-span-2" />
           <div className="space-y-6 hidden xl:block">
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-6">
@@ -992,7 +1032,7 @@ export default function StudentDashboard() {
               </div>
             </div>
           </div>
-        </div>
+        </div> */}
       </div>
     );
   }
