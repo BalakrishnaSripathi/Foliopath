@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Code, Lock } from "lucide-react";
 import { getLesson } from "../../api/courseService";
+import { isExecutableLanguage } from "../../api/codeExecutionService";
+import CodePlayground from "../../components/CodePlayground";
 import { useAuth } from "../../context/AuthContext";
 import Header from "../../components/layout/Header";
 
@@ -81,7 +83,13 @@ function renderLessonItem(item, index) {
           className="text-sm text-slate-700 leading-relaxed mb-3"
         />
       )}
-      {item.codeContent && (
+      {item.codeContent && isExecutableLanguage(item.codeLanguage) ? (
+        <CodePlayground
+          language={item.codeLanguage}
+          starterCode={item.codeContent}
+          height={260}
+        />
+      ) : item.codeContent ? (
         <div>
           <div className="flex items-center gap-2 px-4 py-2 bg-[#0a1628] rounded-t-xl border border-slate-700 border-b-0">
             <Code className="w-3.5 h-3.5 text-[#00A86B]" />
@@ -95,7 +103,7 @@ function renderLessonItem(item, index) {
             </code>
           </pre>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -122,17 +130,26 @@ function renderRawLessonContent(lesson) {
 
   if (lesson.codeContent) {
     blocks.push(
-      <div key="code" className="mb-4">
-        <div className="flex items-center gap-2 px-4 py-2 bg-[#0a1628] rounded-t-xl border border-slate-700 border-b-0">
-          <Code className="w-3.5 h-3.5 text-[#00A86B]" />
-          <span className="text-xs font-mono text-slate-400">
-            {lesson.codeLanguage || "code"}
-          </span>
+      isExecutableLanguage(lesson.codeLanguage) ? (
+        <div key="code" className="mb-4">
+          <CodePlayground
+            language={lesson.codeLanguage}
+            starterCode={lesson.codeContent}
+          />
         </div>
-        <pre className="bg-[#0B2545] text-green-400 p-4 rounded-b-xl border border-slate-700 overflow-x-auto">
-          <code className="text-sm font-mono whitespace-pre">{lesson.codeContent}</code>
-        </pre>
-      </div>
+      ) : (
+        <div key="code" className="mb-4">
+          <div className="flex items-center gap-2 px-4 py-2 bg-[#0a1628] rounded-t-xl border border-slate-700 border-b-0">
+            <Code className="w-3.5 h-3.5 text-[#00A86B]" />
+            <span className="text-xs font-mono text-slate-400">
+              {lesson.codeLanguage || "code"}
+            </span>
+          </div>
+          <pre className="bg-[#0B2545] text-green-400 p-4 rounded-b-xl border border-slate-700 overflow-x-auto">
+            <code className="text-sm font-mono whitespace-pre">{lesson.codeContent}</code>
+          </pre>
+        </div>
+      )
     );
   }
 

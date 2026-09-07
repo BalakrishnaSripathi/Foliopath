@@ -30,6 +30,7 @@ import {
   NotebookPen,
   ChevronDown,
   ChevronRight,
+  Lock,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { getMyEnrollments, getEnrollment } from "../../api/enrollmentService";
@@ -56,6 +57,8 @@ import {
 import RenderAnswer from "../../components/admin/RenderAnswer";
 import StudentProfile from "./StudentProfile";
 import { useAuth } from "../../context/AuthContext";
+import CodePlayground from "../../components/CodePlayground";
+import { isExecutableLanguage } from "../../api/codeExecutionService";
 
 const LEVEL_COLORS = {
   BEGINNER: { bg: "bg-green-100", text: "text-green-700" },
@@ -159,7 +162,11 @@ function InlineLessonView({ moduleId, lessonId, onBack }) {
     }
   }
   if (lesson.codeContent) {
-    contentBlocks.push({ type: "code", body: lesson.codeContent, language: lesson.codeLanguage });
+    if (isExecutableLanguage(lesson.codeLanguage)) {
+      contentBlocks.push({ type: "playground", body: lesson.codeContent, language: lesson.codeLanguage });
+    } else {
+      contentBlocks.push({ type: "code", body: lesson.codeContent, language: lesson.codeLanguage });
+    }
   }
 
   return (
@@ -177,6 +184,7 @@ function InlineLessonView({ moduleId, lessonId, onBack }) {
         )}
         {contentBlocks.length > 0 ? (
           contentBlocks.map((block, i) => {
+            if (block.type === "playground") return <div key={i} className="mb-4"><CodePlayground language={block.language} starterCode={block.body} /></div>;
             if (block.type === "rich") return <RichContent key={i} content={block.body} className="text-sm text-slate-700 leading-relaxed mb-4" />;
             return renderContentBlock(block, i);
           })
@@ -191,7 +199,9 @@ function InlineLessonView({ moduleId, lessonId, onBack }) {
                 <h3 className="text-lg font-bold text-[#0B2545] mb-1">{idx + 1}. {item.title}</h3>
                 {item.description && <p className="text-sm text-slate-500 mb-3">{item.description}</p>}
                 {item.content && <RichContent content={item.content} className="text-sm text-slate-700 leading-relaxed mb-3" />}
-                {item.codeContent && (
+                {item.codeContent && isExecutableLanguage(item.codeLanguage) ? (
+                  <CodePlayground language={item.codeLanguage} starterCode={item.codeContent} height={260} />
+                ) : item.codeContent ? (
                   <div>
                     <div className="flex items-center gap-2 px-4 py-2 bg-[#0a1628] rounded-t-xl border border-slate-700 border-b-0">
                       <Code className="w-3.5 h-3.5 text-[#00A86B]" />
@@ -201,7 +211,7 @@ function InlineLessonView({ moduleId, lessonId, onBack }) {
                       <code>{item.codeContent}</code>
                     </pre>
                   </div>
-                )}
+                ) : null}
               </div>
             ))}
           </div>
@@ -445,6 +455,8 @@ export default function StudentDashboard() {
   const [kitLoading, setKitLoading] = useState(false);
   const [kitSearch, setKitSearch] = useState("");
   const [enrolledKitIds, setEnrolledKitIds] = useState(new Set());
+  const [expandedKitModule, setExpandedKitModule] = useState(null);
+  const [kitListSearch, setKitListSearch] = useState("");
 
   useEffect(() => { loadData(); }, []);
 
@@ -558,6 +570,7 @@ export default function StudentDashboard() {
     setSelectedKit(kitId);
     setKitLoading(true);
     setKitDetail(null);
+    setExpandedKitModule(null);
     try {
       const { data } = await getKitById(kitId);
       setKitDetail(data);
@@ -567,6 +580,27 @@ export default function StudentDashboard() {
     } finally {
       setKitLoading(false);
     }
+  }, []);
+
+  const organizeQuestionsByModule = useCallback((kit) => {
+    if (!kit) return [];
+    const modules = (kit.modules || []).map((m) => ({
+      id: m.id,
+      name: m.name,
+      questions: (m.questions || []).slice().sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0)),
+    }));
+    const unassigned = (kit.questions || [])
+      .filter((q) => !q.moduleId)
+      .slice()
+      .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+    if (unassigned.length > 0) {
+      modules.push({ id: "_unassigned", name: "General Questions", questions: unassigned });
+    }
+    return modules;
+  }, []);
+
+  const isCodeQuestion = useCallback((q) => {
+    return (q?.questionType || "").toUpperCase() === "CODE" || !!q?.codeSnippet || !!q?.codeLanguage;
   }, []);
 
   const handleEnrollInKit = async (kitId) => {
@@ -648,7 +682,7 @@ export default function StudentDashboard() {
   if (selectedKit) {
     return (
       <div className="p-6 space-y-6">
-        <button onClick={() => { setSelectedKit(null); setKitDetail(null); }} className="flex items-center gap-2 text-sm text-slate-500 hover:text-[#00A86B] transition-colors">
+        <button onClick={() => { setSelectedKit(null); setKitDetail(null); setExpandedKitModule(null); }} className="flex items-center gap-2 text-sm text-slate-500 hover:text-[#00A86B] transition-colors">
           <ArrowLeft size={16} /> Back to Interview Kits
         </button>
         {kitLoading ? (
@@ -665,39 +699,128 @@ export default function StudentDashboard() {
                     <span className="flex items-center gap-1"><ClipboardList className="w-4 h-4" />{kitDetail.questionCount || kitDetail.questions?.length || 0} questions</span>
                     <span className="flex items-center gap-1"><Clock className="w-4 h-4" />{kitDetail.level}</span>
                   </div>
+                  <div className="mt-4">
+                    {enrolledKitIds.has(kitDetail.id) ? (
+                      <span className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-white/15 text-amber-100 border border-amber-300/40">
+                        <CheckCircle2 className="w-4 h-4" /> Enrolled — questions unlocked
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-white/10 text-slate-200 border border-white/20">
+                        <Lock className="w-4 h-4" /> Enroll to unlock questions & answers
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
-            <div className="bg-white rounded-2xl border border-slate-100 p-6">
-              <h2 className="text-lg font-bold text-[#0B2545] mb-4">Questions</h2>
-              {kitDetail.questions?.length > 0 ? (
-                <div className="space-y-4">
-                  {kitDetail.questions.map((q, idx) => (
-                    <div key={q.id || idx} className="border border-slate-100 rounded-xl p-4">
+
+            {(() => {
+              const kitModules = organizeQuestionsByModule(kitDetail);
+              const totalQuestions = kitModules.reduce((acc, m) => acc + m.questions.length, 0);
+              const isEnrolled = enrolledKitIds.has(kitDetail.id);
+              return (
+                <div className="bg-white rounded-2xl border border-slate-100 p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-bold text-[#0B2545]">Modules</h2>
+                    <span className="text-xs text-slate-400">{kitModules.length} module{kitModules.length !== 1 ? "s" : ""} · {totalQuestions} questions</span>
+                  </div>
+
+                  {!isEnrolled && (
+                    <div className="mb-6 p-5 bg-amber-50/70 border border-amber-200 rounded-2xl">
                       <div className="flex items-start gap-3">
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${q.questionType === "CODE" ? "bg-blue-50" : "bg-green-50"}`}>
-                          {q.questionType === "CODE" ? <Code className="w-4 h-4 text-blue-500" /> : <FileText className="w-4 h-4 text-green-500" />}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-[#0B2545]">Q{idx + 1}. {q.question}</p>
-                          {q.codeSnippet && (
-                            <pre className="mt-2 text-xs font-mono bg-[#0B2545] text-green-400 rounded-xl p-3 overflow-x-auto whitespace-pre-wrap">{q.codeSnippet}</pre>
-                          )}
-                           {enrolledKitIds.has(kitDetail.id) && (
-                            <div className="mt-3 p-3 bg-green-50 rounded-xl border border-green-100">
-                              <p className="text-xs font-semibold text-green-700 mb-1">Answer:</p>
-                              <RenderAnswer content={q.answer} />
-                            </div>
+                        <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center shrink-0"><Lock className="w-4 h-4 text-amber-600" /></div>
+                        <div className="flex-1">
+                          <h3 className="text-sm font-bold text-amber-800">Enroll to view the questions</h3>
+                          <p className="text-xs text-amber-700 mt-1 leading-relaxed">The modules are listed below, but their questions and answers are locked until you enroll in this interview kit.</p>
+                          {kitDetail.price > 0 ? (
+                            <button onClick={() => { setSelectedKit(null); setKitDetail(null); setExpandedKitModule(null); }} className="mt-3 px-5 py-2.5 bg-[#00A86B] hover:bg-[#008f5a] text-white text-xs font-bold rounded-xl shadow-md transition-colors">Enroll Now</button>
+                          ) : (
+                            <button onClick={() => handleEnrollInKit(kitDetail.id)} className="mt-3 px-5 py-2.5 bg-[#00A86B] hover:bg-[#008f5a] text-white text-xs font-bold rounded-xl shadow-md transition-colors">Enroll Free</button>
                           )}
                         </div>
                       </div>
                     </div>
-                  ))}
+                  )}
+
+                  {kitModules.length === 0 ? (
+                    <p className="text-sm text-slate-400 text-center py-6">No modules in this kit yet.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {kitModules.map((mod, modIdx) => {
+                        const isExpanded = expandedKitModule === mod.id;
+                        return (
+                          <div key={mod.id || modIdx} className="border border-slate-100 rounded-xl overflow-hidden">
+                            <button
+                              onClick={() => setExpandedKitModule(isExpanded ? null : mod.id)}
+                              disabled={!isEnrolled}
+                              className={`w-full flex items-center justify-between p-4 text-left transition-colors ${isEnrolled ? "hover:bg-slate-50 cursor-pointer" : "cursor-not-allowed"}`}
+                            >
+                              <div className="flex items-center gap-3">
+                                {isEnrolled ? (
+                                  isExpanded ? <ChevronDown className="w-5 h-5 text-slate-400 shrink-0" /> : <ChevronRight className="w-5 h-5 text-slate-400 shrink-0" />
+                                ) : (
+                                  <Lock className="w-4 h-4 text-slate-300 shrink-0" />
+                                )}
+                                <div className="flex items-center gap-2">
+                                  <span className="font-semibold text-[#0B2545] text-sm">Module {modIdx + 1}: {mod.name}</span>
+                                  <span className="text-xs text-slate-400">{mod.questions.length} question{mod.questions.length !== 1 ? "s" : ""}</span>
+                                </div>
+                              </div>
+                              {!isEnrolled && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 shrink-0">Locked</span>}
+                            </button>
+                            {isExpanded && isEnrolled && (
+                              <div className="border-t border-slate-100 bg-slate-50/50">
+                                {mod.questions.length === 0 ? (
+                                  <p className="text-sm text-slate-400 text-center py-4">No questions in this module.</p>
+                                ) : (
+                                  <div className="divide-y divide-slate-100">
+                                    {mod.questions.map((q, qIdx) => (
+                                      <div key={q.id || qIdx} className="p-4">
+                                        <div className="flex items-start gap-3">
+                                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isCodeQuestion(q) ? "bg-blue-50" : "bg-green-50"}`}>
+                                            {isCodeQuestion(q) ? <Code className="w-4 h-4 text-blue-500" /> : <FileText className="w-4 h-4 text-green-500" />}
+                                          </div>
+                                          <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-semibold text-[#0B2545]">Q{qIdx + 1}. {q.question}</p>
+                                            {q.codeSnippet && isCodeQuestion(q) && (
+                                              <div className="mt-2">
+                                                <pre className="text-xs font-mono bg-[#0B2545] text-green-400 rounded-xl p-3 overflow-x-auto whitespace-pre-wrap">{q.codeSnippet}</pre>
+                                              </div>
+                                            )}
+                                            <div className="mt-3 p-3 bg-green-50 rounded-xl border border-green-100">
+                                              <p className="text-xs font-semibold text-green-700 mb-1">Answer:</p>
+                                              <RenderAnswer content={q.answer} />
+                                            </div>
+                                            {isCodeQuestion(q) && (
+                                              <div className="mt-4 rounded-2xl border border-blue-200 overflow-hidden">
+                                                <div className="flex items-center justify-between px-4 py-2.5 bg-blue-50 border-b border-blue-100">
+                                                  <div className="flex items-center gap-2">
+                                                    <Code className="w-4 h-4 text-blue-600" />
+                                                    <span className="text-xs font-bold text-blue-700 uppercase tracking-wide">
+                                                      {q.codeLanguage || "Code"} Compiler
+                                                    </span>
+                                                  </div>
+                                                  <span className="text-[10px] font-mono text-blue-500">Edit & Run your solution</span>
+                                                </div>
+                                                <CodePlayground language={q.codeLanguage} starterCode={q.codeSnippet || ""} height={260} />
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <p className="text-sm text-slate-400 text-center py-6">No questions in this kit yet.</p>
-              )}
-            </div>
+              );
+            })()}
           </div>
         ) : (
           <p className="text-slate-500 text-center py-10">Kit not found</p>
@@ -1041,11 +1164,23 @@ export default function StudentDashboard() {
   if (isInterviewKits) {
     return (
       <div className="p-6 space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Interview Kits</h1>
-          <p className="text-sm text-slate-500 mt-0.5">
-            {enrolledKits.length} enrolled kit{enrolledKits.length !== 1 ? "s" : ""} · {publishedKits.length} available
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-800">Interview Kits</h1>
+            <p className="text-sm text-slate-500 mt-0.5">
+              {enrolledKits.length} enrolled kit{enrolledKits.length !== 1 ? "s" : ""} · {publishedKits.length} available
+            </p>
+          </div>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search kits..."
+              value={kitListSearch}
+              onChange={(e) => setKitListSearch(e.target.value)}
+              className="pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#00A86B]/20 focus:border-[#00A86B] w-48"
+            />
+          </div>
         </div>
 
         {/* Enrolled Kits */}
@@ -1081,15 +1216,23 @@ export default function StudentDashboard() {
         {/* Available Kits */}
         <div>
           <h2 className="font-semibold text-slate-800 mb-3">Available Interview Kits</h2>
-          {publishedKits.length === 0 ? (
+          {(() => {
+            const filteredAvailable = publishedKits.filter((k) => !enrolledKitIds.has(k.id) && (kitListSearch ? k.name?.toLowerCase().includes(kitListSearch.toLowerCase()) : true));
+            return publishedKits.length === 0 ? (
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 text-center">
               <Briefcase className="w-12 h-12 text-slate-300 mx-auto mb-4" />
               <h2 className="text-lg font-bold text-[#0B2545] mb-2">No kits available</h2>
               <p className="text-sm text-slate-500">Interview kits will appear here once published.</p>
             </div>
+          ) : filteredAvailable.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 text-center">
+              <Search className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+              <h2 className="text-lg font-bold text-[#0B2545] mb-2">No kits match "{kitListSearch}"</h2>
+              <p className="text-sm text-slate-500">Try a different search term.</p>
+            </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {publishedKits.filter((k) => !enrolledKitIds.has(k.id)).map((kit) => (
+              {filteredAvailable.map((kit) => (
                 <div
                   key={kit.id}
                   className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow"
@@ -1128,7 +1271,8 @@ export default function StudentDashboard() {
                 </div>
               )}
             </div>
-          )}
+          );
+          })()}
         </div>
       </div>
     );
