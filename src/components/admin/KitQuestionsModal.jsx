@@ -36,6 +36,8 @@ import DeleteConfirmModal from "../ui/DeleteConfirmModal";
 
 const FENCE = "\u0060\u0060\u0060";
 
+const CODE_LANGUAGES = ["JAVA", "PYTHON", "JAVASCRIPT"];
+
 // ─── Rich Answer Editor ─────────────────────────────────────────────
 
 function RichAnswerEditor({ value, onChange, error }) {
@@ -152,7 +154,7 @@ function RichAnswerEditor({ value, onChange, error }) {
 function QuestionForm({ initial, isEdit, onSave, onCancel, modules, selectedModuleId }) {
   const [form, setForm] = useState({
     questionType: initial?.questionType || "TEXT",
-    codeLanguage: initial?.codeLanguage || "",
+    codeLanguage: initial?.codeLanguage || "JAVA",
     question: initial?.question || "",
     codeSnippet: initial?.codeSnippet || "",
     answer: initial?.answer || "",
@@ -215,8 +217,17 @@ function QuestionForm({ initial, isEdit, onSave, onCancel, modules, selectedModu
         </div>
         {form.questionType === "CODE" && (
           <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Code Language</label>
-            <input type="text" value={form.codeLanguage} onChange={set("codeLanguage")} className={inputCls} placeholder="e.g. Java, Python, JavaScript" />
+            <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Programming Language</label>
+            <select
+              value={CODE_LANGUAGES.includes(form.codeLanguage) ? form.codeLanguage : "JAVA"}
+              onChange={set("codeLanguage")}
+              className={inputCls}
+            >
+              {CODE_LANGUAGES.map((l) => (
+                <option key={l} value={l}>{l}</option>
+              ))}
+            </select>
+            <p className="text-[10px] text-slate-400 mt-1">Only these languages can be compiled & run.</p>
           </div>
         )}
       </div>
@@ -492,7 +503,7 @@ export default function KitQuestionsModal({ kit, onClose }) {
   const [modules, setModules] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingQuestion, setEditingQuestion] = useState(null);
-  const [showAddForm, setShowAddForm] = useState(false);
+  const [questionFormTarget, setQuestionFormTarget] = useState(null); // { kind: "top" } | { kind: "module", moduleId } | { kind: "unassigned" }
   const [showAnswers, setShowAnswers] = useState({});
   const [error, setError] = useState("");
 
@@ -502,25 +513,29 @@ export default function KitQuestionsModal({ kit, onClose }) {
   const [showModuleMenu, setShowModuleMenu] = useState(false);
   const [editingModule, setEditingModule] = useState(null);
   const [expandedModules, setExpandedModules] = useState({});
-  const [selectedModuleId, setSelectedModuleId] = useState(null);
   const [deleteModal, setDeleteModal] = useState(null);
 
   useEffect(() => {
     loadKit();
   }, []);
 
-  const loadKit = async () => {
-    setLoading(true);
+  const loadKit = async (options = {}) => {
+    const silent = options.silent;
+    if (!silent) setLoading(true);
     try {
       const { data } = await getKitById(kit.id);
       setKitData(data);
       setModules(data.modules || []);
-      // Expand all modules by default
-      const expanded = {};
-      (data.modules || []).forEach((m) => {
-        expanded[m.id] = true;
+      // Preserve the current expanded state across reloads so the view
+      // doesn't collapse and jump after saving a question. Modules start
+      // collapsed on first load.
+      setExpandedModules((prev) => {
+        const next = {};
+        (data.modules || []).forEach((m) => {
+          next[m.id] = !!prev[m.id];
+        });
+        return next;
       });
-      setExpandedModules(expanded);
     } catch (err) {
       console.error("Failed to load kit:", err);
       setError("Failed to load kit details");
@@ -634,9 +649,9 @@ export default function KitQuestionsModal({ kit, onClose }) {
   const handleAddQuestion = async (form) => {
     try {
       await addKitQuestion(kit.id, form);
-      setShowAddForm(false);
-      setSelectedModuleId(null);
-      loadKit();
+      setQuestionFormTarget(null);
+      setEditingQuestion(null);
+      loadKit({ silent: true });
     } catch (err) {
       throw err;
     }
@@ -645,10 +660,19 @@ export default function KitQuestionsModal({ kit, onClose }) {
   const handleUpdateQuestion = async (questionId, form) => {
     try {
       await updateKitQuestion(kit.id, questionId, form);
+      setQuestionFormTarget(null);
       setEditingQuestion(null);
-      loadKit();
+      loadKit({ silent: true });
     } catch (err) {
       throw err;
+    }
+  };
+
+  const openQuestionForm = (target, question) => {
+    setQuestionFormTarget(target);
+    setEditingQuestion(question || null);
+    if (target && target.kind === "module") {
+      setExpandedModules((prev) => ({ ...prev, [target.moduleId]: true }));
     }
   };
 
@@ -748,7 +772,7 @@ export default function KitQuestionsModal({ kit, onClose }) {
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-5">
+        <div className="flex-1 overflow-y-auto p-5" style={{ scrollbarGutter: "stable" }}>
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
               {error}
@@ -770,7 +794,7 @@ export default function KitQuestionsModal({ kit, onClose }) {
                       setShowModulePicker(false);
                       setShowModuleForm(false);
                       setEditingModule(null);
-                      setShowAddForm(false);
+                      setQuestionFormTarget(null);
                       setEditingQuestion(null);
                     }}
                     className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-[#0B2545] hover:bg-[#0a1e38] text-white shadow-md transition-all duration-150 active:scale-95"
@@ -788,7 +812,7 @@ export default function KitQuestionsModal({ kit, onClose }) {
                           setShowModuleForm(true);
                           setEditingModule(null);
                           setShowModulePicker(false);
-                          setShowAddForm(false);
+                          setQuestionFormTarget(null);
                           setEditingQuestion(null);
                         }}
                         className="flex items-start gap-3 w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors"
@@ -808,7 +832,7 @@ export default function KitQuestionsModal({ kit, onClose }) {
                           setShowModulePicker(true);
                           setShowModuleForm(false);
                           setEditingModule(null);
-                          setShowAddForm(false);
+                          setQuestionFormTarget(null);
                           setEditingQuestion(null);
                         }}
                         className="flex items-start gap-3 w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors"
@@ -826,13 +850,14 @@ export default function KitQuestionsModal({ kit, onClose }) {
                 </div>
                 <button
                   onClick={() => {
-                    setShowAddForm(!showAddForm);
+                    setQuestionFormTarget((prev) =>
+                      prev && prev.kind === "top" ? null : { kind: "top" }
+                    );
                     setEditingQuestion(null);
                     setShowModuleForm(false);
                     setEditingModule(null);
                     setShowModulePicker(false);
                     setShowModuleMenu(false);
-                    setSelectedModuleId(null);
                   }}
                   className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-[#00A86B] hover:bg-[#008f5a] text-white shadow-md transition-all duration-150 active:scale-95"
                 >
@@ -867,22 +892,21 @@ export default function KitQuestionsModal({ kit, onClose }) {
                 />
               )}
 
-              {/* Add/Edit Question Form */}
-              {(showAddForm || editingQuestion) && (
+              {/* Top-level Add Question Form */}
+              {questionFormTarget?.kind === "top" && (
                 <QuestionForm
                   initial={editingQuestion}
                   isEdit={!!editingQuestion}
                   modules={modules}
-                  selectedModuleId={selectedModuleId}
+                  selectedModuleId=""
                   onSave={
                     editingQuestion
                       ? (form) => handleUpdateQuestion(editingQuestion.id, form)
                       : handleAddQuestion
                   }
                   onCancel={() => {
-                    setShowAddForm(false);
+                    setQuestionFormTarget(null);
                     setEditingQuestion(null);
-                    setSelectedModuleId(null);
                   }}
                 />
               )}
@@ -937,7 +961,7 @@ export default function KitQuestionsModal({ kit, onClose }) {
                                 setShowModuleForm(true);
                                 setShowModulePicker(false);
                                 setShowModuleMenu(false);
-                                setShowAddForm(false);
+                                setQuestionFormTarget(null);
                                 setEditingQuestion(null);
                               }}
                               title="Edit Module"
@@ -954,60 +978,80 @@ export default function KitQuestionsModal({ kit, onClose }) {
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
-                            <button
-                              onClick={() => {
-                                setShowAddForm(true);
-                                setSelectedModuleId(mod.id);
-                                setEditingQuestion(null);
-                                setShowModuleForm(false);
-                                setShowModulePicker(false);
-                                setShowModuleMenu(false);
-                              }}
-                              title="Add Question to Module"
-                              className="w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-150 hover:opacity-80"
-                              style={{ color: "#00A86B", background: "#00A86B15" }}
-                            >
-                              <Plus className="w-3.5 h-3.5" />
-                            </button>
                           </div>
                         </div>
                       </ReorderableItem>
 
                       {/* Module Questions */}
                       {expandedModules[mod.id] && (
-                        <div className="p-3 space-y-2">
+                        <div className="p-3 space-y-3 animate-[kitFade_.2s_ease-out]">
                           {(mod.questions || []).length === 0 ? (
                             <div className="text-center py-6 text-slate-400 text-xs">
-                              No questions in this module. Click + to add one.
+                              No questions in this module yet.
                             </div>
                           ) : (
-                            (mod.questions || []).map((q, qIdx) => (
-                              <ReorderableItem
-                                key={q.id}
-                                dragId={q.id}
-                                canUp={qIdx > 0}
-                                canDown={qIdx < (mod.questions || []).length - 1}
-                                onMoveUp={() => moveQuestionUp(mod.id, qIdx)}
-                                onMoveDown={() => moveQuestionDown(mod.id, qIdx)}
-                                onDragOver={(e) => e.preventDefault()}
-                                onDrop={(fromId) => handleDragQuestion(mod.id, fromId, q.id)}
-                              >
-                                <QuestionItem
-                                  q={q}
-                                  idx={qIdx}
-                                  showAnswers={showAnswers}
-                                  setShowAnswers={setShowAnswers}
-                                  onEdit={() => {
-                                    setEditingQuestion(q);
-                                    setShowAddForm(false);
-                                    setShowModuleForm(false);
-                                    setShowModuleMenu(false);
-                                  }}
-                                  onDelete={() => handleDeleteQuestion(q)}
-                                />
-                              </ReorderableItem>
-                            ))
+                            <div className="space-y-2">
+                              {(mod.questions || []).map((q, qIdx) => (
+                                <ReorderableItem
+                                  key={q.id}
+                                  dragId={q.id}
+                                  canUp={qIdx > 0}
+                                  canDown={qIdx < (mod.questions || []).length - 1}
+                                  onMoveUp={() => moveQuestionUp(mod.id, qIdx)}
+                                  onMoveDown={() => moveQuestionDown(mod.id, qIdx)}
+                                  onDragOver={(e) => e.preventDefault()}
+                                  onDrop={(fromId) => handleDragQuestion(mod.id, fromId, q.id)}
+                                >
+                                  <QuestionItem
+                                    q={q}
+                                    idx={qIdx}
+                                    showAnswers={showAnswers}
+                                    setShowAnswers={setShowAnswers}
+                                    onEdit={() => {
+                                      openQuestionForm({ kind: "module", moduleId: mod.id }, q);
+                                      setShowModuleForm(false);
+                                      setShowModuleMenu(false);
+                                    }}
+                                    onDelete={() => handleDeleteQuestion(q)}
+                                  />
+                                </ReorderableItem>
+                              ))}
+                            </div>
                           )}
+
+                          {questionFormTarget?.kind === "module" && questionFormTarget.moduleId === mod.id && (
+                            <QuestionForm
+                              initial={editingQuestion}
+                              isEdit={!!editingQuestion}
+                              modules={modules}
+                              selectedModuleId={mod.id}
+                              onSave={
+                                editingQuestion
+                                  ? (form) => handleUpdateQuestion(editingQuestion.id, form)
+                                  : handleAddQuestion
+                              }
+                              onCancel={() => {
+                                setQuestionFormTarget(null);
+                                setEditingQuestion(null);
+                              }}
+                            />
+                          )}
+
+                          <div className="flex justify-end">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                openQuestionForm({ kind: "module", moduleId: mod.id }, null);
+                                setShowModuleForm(false);
+                                setShowModulePicker(false);
+                                setShowModuleMenu(false);
+                              }}
+                              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-white border border-slate-200 rounded-lg hover:border-[#00A86B] hover:text-[#00A86B] transition-all duration-200"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              Add Question
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -1032,14 +1076,30 @@ export default function KitQuestionsModal({ kit, onClose }) {
                             showAnswers={showAnswers}
                             setShowAnswers={setShowAnswers}
                             onEdit={() => {
-                              setEditingQuestion(q);
-                              setShowAddForm(false);
+                              openQuestionForm({ kind: "unassigned" }, q);
                               setShowModuleForm(false);
                               setShowModuleMenu(false);
                             }}
                             onDelete={() => handleDeleteQuestion(q)}
                           />
                         ))}
+                        {questionFormTarget?.kind === "unassigned" && (
+                          <QuestionForm
+                            initial={editingQuestion}
+                            isEdit={!!editingQuestion}
+                            modules={modules}
+                            selectedModuleId=""
+                            onSave={
+                              editingQuestion
+                                ? (form) => handleUpdateQuestion(editingQuestion.id, form)
+                                : handleAddQuestion
+                            }
+                            onCancel={() => {
+                              setQuestionFormTarget(null);
+                              setEditingQuestion(null);
+                            }}
+                          />
+                        )}
                       </div>
                     </div>
                   )}

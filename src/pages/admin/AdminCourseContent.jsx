@@ -329,19 +329,9 @@ function MockTestForm({ initial, onSave, onCancel, saving }) {
       </div>
 
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-            Questions ({form.questions.length})
-          </label>
-          <button
-            type="button"
-            onClick={addQuestion}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-white border border-slate-200 rounded-lg hover:border-[#00A86B] hover:text-[#00A86B] transition-all duration-200"
-          >
-            <Plus className="w-3 h-3" />
-            Add Question
-          </button>
-        </div>
+        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+          Questions ({form.questions.length})
+        </label>
 
         {form.questions.length === 0 && (
           <p className="text-xs text-slate-400">
@@ -358,6 +348,17 @@ function MockTestForm({ initial, onSave, onCancel, saving }) {
             onRemove={() => removeQuestion(idx)}
           />
         ))}
+
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={addQuestion}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-white border border-slate-200 rounded-lg hover:border-[#00A86B] hover:text-[#00A86B] transition-all duration-200"
+          >
+            <Plus className="w-3 h-3" />
+            Add Question
+          </button>
+        </div>
       </div>
 
       <div className="flex items-center gap-2 pt-1">
