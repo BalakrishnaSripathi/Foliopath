@@ -7,6 +7,11 @@ export const addToCart = (courseId) => {
   return api.post("/api/student/cart/items", { courseId });
 };
 
+// POST /api/student/cart/items  { kitId }
+export const addKitToCart = (kitId) => {
+  return api.post("/api/student/cart/items", { kitId });
+};
+
 // GET /api/student/cart
 export const getCart = () => {
   return api.get("/api/student/cart");

@@ -23,7 +23,7 @@ const NAV_ITEMS = [
   { icon: Award, label: "Certificates", path: "/StudentDashboard/certificates" },
   { icon: CreditCard, label: "Payments", path: "/StudentDashboard/payments" },
   { icon: Bell, label: "Notifications", path: "/StudentDashboard/notifications", badge: 0 },
-  { icon: Settings, label: "Settings", path: "/StudentDashboard/settings" },
+  { icon: Settings, label: "My Profile", path: "/StudentDashboard/settings" },
 ];
 
 export default function StudentShell() {

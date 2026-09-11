@@ -34,6 +34,7 @@ function normalizeQuestion(q, i) {
       displayOrder: j + 1,
     })),
     correctOption: q.correctOption || "A",
+    solution: q.solution || "",
     displayOrder: Number(q.displayOrder) || i + 1,
   };
 }

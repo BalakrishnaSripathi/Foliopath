@@ -123,12 +123,12 @@ export default function CartPage() {
     try {
       await removeCartItem(itemId);
       window.dispatchEvent(new Event("cart:updated"));
-      toast.success("Course removed from cart");
+      toast.success("Item removed from cart");
       await loadCart();
     } catch (err) {
       console.error("Failed to remove item:", err);
       toast.error(
-        err.response?.data?.message || "Failed to remove the course"
+        err.response?.data?.message || "Failed to remove the item"
       );
     } finally {
       setRemovingItemId(null);
@@ -169,7 +169,7 @@ export default function CartPage() {
               My Cart
             </h1>
             <p className="text-sm text-slate-500 mt-1">
-              {itemCount} course{itemCount === 1 ? "" : "s"} in your cart
+              {itemCount} item{itemCount === 1 ? "" : "s"} in your cart
             </p>
           </div>
           {itemCount > 0 && (
@@ -200,7 +200,7 @@ export default function CartPage() {
                       key={item.itemId}
                       className="text-sm text-slate-600 flex justify-between gap-4"
                     >
-                      <span className="truncate">{item.courseTitle}</span>
+                      <span className="truncate">{item.courseTitle || item.kitName || "Item"}</span>
                       <span className="flex-shrink-0 font-semibold">
                         {rupees(item.price)}
                       </span>
@@ -238,47 +238,59 @@ export default function CartPage() {
           <div className="grid lg:grid-cols-3 gap-8">
             {/* Items */}
             <div className="lg:col-span-2 space-y-4">
-              {items.map((item) => (
-                <div
-                  key={item.itemId}
-                  className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 flex gap-4"
-                >
-                  <img
-                    src={
-                      item.thumbnailUrl ||
-                      "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=600&q=80"
-                    }
-                    alt={item.courseTitle}
-                    className="w-28 h-20 object-cover rounded-xl flex-shrink-0"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs text-slate-400 uppercase tracking-wide font-semibold">
-                      {item.courseCode}
-                    </p>
-                    <Link
-                      to={`/courses/${item.courseId}`}
-                      className="block font-bold text-[#0B2545] truncate hover:text-[#00A86B] transition-colors"
-                    >
-                      {item.courseTitle}
-                    </Link>
-                    <p className="text-lg font-black text-[#0B2545] mt-1">
-                      {rupees(item.price)}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => handleRemoveItem(item.itemId)}
-                    disabled={removingItemId === item.itemId || paying}
-                    title="Remove from cart"
-                    className="self-start p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-60"
-                  >
-                    {removingItemId === item.itemId ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="w-4 h-4" />
-                    )}
-                  </button>
-                </div>
-              ))}
+              {items.map((item) => {
+                    const isKit = item.itemType === "KIT" || Boolean(item.kitId);
+                    const title = item.courseTitle || item.kitName || "Item";
+                    const eyebrow =
+                      item.itemType === "COURSE" ? item.courseCode : "Interview Kit";
+                    return (
+                      <div
+                        key={item.itemId}
+                        className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 flex gap-4"
+                      >
+                        <img
+                          src={
+                            item.thumbnailUrl ||
+                            "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=600&q=80"
+                          }
+                          alt={title}
+                          className="w-28 h-20 object-cover rounded-xl flex-shrink-0"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-slate-400 uppercase tracking-wide font-semibold">
+                            {eyebrow}
+                          </p>
+                          {isKit ? (
+                            <p className="block font-bold text-[#0B2545] truncate">
+                              {title}
+                            </p>
+                          ) : (
+                            <Link
+                              to={`/courses/${item.courseId}`}
+                              className="block font-bold text-[#0B2545] truncate hover:text-[#00A86B] transition-colors"
+                            >
+                              {title}
+                            </Link>
+                          )}
+                          <p className="text-lg font-black text-[#0B2545] mt-1">
+                            {rupees(item.price)}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => handleRemoveItem(item.itemId)}
+                          disabled={removingItemId === item.itemId || paying}
+                          title="Remove from cart"
+                          className="self-start p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-60"
+                        >
+                          {removingItemId === item.itemId ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-4 h-4" />
+                          )}
+                        </button>
+                      </div>
+                    );
+                  })}
             </div>
 
             {/* Summary */}

@@ -11,6 +11,7 @@ import {
   X,
   Pencil,
   ClipboardList,
+  BookOpen,
 } from "lucide-react";
 import { getModuleById } from "../../api/courseService";
 import {
@@ -48,6 +49,7 @@ const emptyQuestion = (displayOrder) => ({
     { label: "D", text: "" },
   ],
   correctOption: "A",
+  solution: "",
   displayOrder,
 });
 
@@ -182,6 +184,17 @@ function QuestionEditor({ question, index, onChange, onRemove }) {
         <p className="text-xs text-slate-400 mt-1">
           Click a letter button to mark the correct answer (green).
         </p>
+      </div>
+
+      <div>
+        <label className={labelCls}>Solution (Optional)</label>
+        <textarea
+          value={question.solution || ""}
+          onChange={set("solution")}
+          rows={3}
+          className={`${inputCls} resize-y`}
+          placeholder="Explanation / solution shown to students after they submit"
+        />
       </div>
     </div>
   );
@@ -422,6 +435,7 @@ export default function AdminMockTest() {
             text: opt?.text || "",
           })),
           correctOption: q.correctOption || "A",
+          solution: q.solution || "",
           displayOrder: q.displayOrder || i + 1,
         })),
       },
@@ -636,22 +650,35 @@ export default function AdminMockTest() {
                             )}
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                              {(q.options || []).map((opt) => (
-                                <div
-                                  key={opt.label}
-                                  className={`text-xs px-2 py-1.5 rounded-lg border ${
-                                    opt.label === q.correctOption
-                                      ? "bg-green-50 border-green-200 text-green-700 font-semibold"
-                                      : "bg-white border-slate-200 text-slate-600"
-                                  }`}
-                                >
-                                  <span className="font-bold mr-1">{opt.label}.</span>
-                                  {opt.text}
+                                  {(q.options || []).map((opt) => (
+                                    <div
+                                      key={opt.label}
+                                      className={`text-xs px-2 py-1.5 rounded-lg border ${
+                                        opt.label === q.correctOption
+                                          ? "bg-green-50 border-green-200 text-green-700 font-semibold"
+                                          : "bg-white border-slate-200 text-slate-600"
+                                      }`}
+                                    >
+                                      <span className="font-bold mr-1">{opt.label}.</span>
+                                      {opt.text}
+                                    </div>
+                                  ))}
                                 </div>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
+                                {q.solution && q.solution.trim() && (
+                                  <div className="rounded-lg border border-green-200 bg-green-50/60 p-3">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <BookOpen className="w-3.5 h-3.5 text-green-600" />
+                                      <span className="text-[11px] font-bold text-green-700 uppercase tracking-wide">
+                                        Solution
+                                      </span>
+                                    </div>
+                                    <p className="text-xs text-green-900 whitespace-pre-wrap leading-relaxed">
+                                      {q.solution}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
 
                       {(test.questions || []).length === 0 && (
                         <p className="text-sm text-slate-400 text-center py-2">

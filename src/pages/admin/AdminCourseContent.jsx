@@ -96,6 +96,7 @@ const emptyQuestion = (displayOrder) => ({
     { label: "D", text: "" },
   ],
   correctOption: "A",
+  solution: "",
   displayOrder,
 });
 
@@ -230,6 +231,17 @@ function QuestionEditor({ question, index, onChange, onRemove }) {
         <p className="text-xs text-slate-400 mt-1">
           Click a letter button to mark the correct answer (green).
         </p>
+      </div>
+
+      <div>
+        <label className={labelCls}>Solution (Optional)</label>
+        <textarea
+          value={question.solution || ""}
+          onChange={set("solution")}
+          rows={3}
+          className={`${inputCls} resize-y`}
+          placeholder="Explanation / solution shown to students after they submit"
+        />
       </div>
     </div>
   );
@@ -1028,6 +1040,11 @@ export default function AdminCourseContent() {
   };
 
   const openAddLesson = (mod) => {
+    if (expandedModule !== mod.id) {
+      setExpandedModule(mod.id);
+      if (!lessonsByModule[mod.id]) loadLessons(mod.id);
+      if (!mockTestsByModule[mod.id]) loadMockTests(mod.id);
+    }
     const count = (lessonsByModule[mod.id] || []).length;
     setMockTestFormState(null);
     setFormState({
@@ -1127,6 +1144,11 @@ export default function AdminCourseContent() {
   };
 
   const openAddMockTest = (mod) => {
+    if (expandedModule !== mod.id) {
+      setExpandedModule(mod.id);
+      if (!lessonsByModule[mod.id]) loadLessons(mod.id);
+      if (!mockTestsByModule[mod.id]) loadMockTests(mod.id);
+    }
     const count = (mockTestsByModule[mod.id] || []).length;
     setFormState(null);
     setMockTestFormState({
@@ -1157,6 +1179,7 @@ export default function AdminCourseContent() {
             text: opt?.text || "",
           })),
           correctOption: q.correctOption || "A",
+          solution: q.solution || "",
           displayOrder: q.displayOrder || i + 1,
         })),
       },

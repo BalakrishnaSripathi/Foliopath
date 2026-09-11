@@ -33,7 +33,7 @@ import {
   Lock,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { getMyEnrollments, getEnrollment } from "../../api/enrollmentService";
+import { getMyEnrollments, getEnrollment, enrollInCourse } from "../../api/enrollmentService";
 import {
   getPublishedCourses,
   getCourseById,
@@ -42,6 +42,9 @@ import {
   getLesson,
   getCourseModules,
 } from "../../api/courseService";
+import { addToCart, addKitToCart } from "../../api/cartService";
+import { checkoutCart } from "../../api/orderService";
+import { payOrder } from "../../api/paymentService";
 import {
   getMockTests,
   getMockTest,
@@ -59,6 +62,7 @@ import StudentProfile from "./StudentProfile";
 import { useAuth } from "../../context/AuthContext";
 import CodePlayground from "../../components/CodePlayground";
 import { isExecutableLanguage } from "../../api/codeExecutionService";
+import { enrichCourse } from "../../lib/staticCatalog";
 
 const LEVEL_COLORS = {
   BEGINNER: { bg: "bg-green-100", text: "text-green-700" },
@@ -348,6 +352,7 @@ function InlineMockTestResult({ mockTestId, result: initialResult, onBack }) {
   const percentage = result.percentage ?? 0;
   const passed = !!result.passed;
   const wrongAnswers = (result.total || 0) - (result.score || 0);
+  const reviewQuestions = result.questions?.length ? result.questions : test?.questions;
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
@@ -358,7 +363,7 @@ function InlineMockTestResult({ mockTestId, result: initialResult, onBack }) {
         <div className={`w-24 h-24 mx-auto rounded-full flex items-center justify-center mb-4 ${passed ? "bg-white/20" : "bg-white/10"}`}>
           {passed ? <Trophy size={40} className="text-white" /> : <Target size={40} className="text-white/80" />}
         </div>
-        <h1 className="text-2xl font-bold text-white mb-1">{test?.title || "Mock Test"}</h1>
+        <h1 className="text-2xl font-bold text-white mb-1">{result.testTitle || test?.title || "Mock Test"}</h1>
         <p className={`text-sm ${passed ? "text-emerald-100" : "text-slate-300"}`}>Test Result</p>
         <div className="mt-6 inline-flex items-baseline gap-1">
           <span className="text-5xl font-black text-white">{percentage}%</span>
@@ -390,24 +395,75 @@ function InlineMockTestResult({ mockTestId, result: initialResult, onBack }) {
           <p className="text-xs text-slate-500 mt-0.5">Pass Mark</p>
         </div>
       </div>
-      {test?.questions && (
+      {reviewQuestions && (
         <div className="space-y-4">
           <h2 className="font-bold text-[#0B2545] text-lg">Questions</h2>
-          {test.questions.map((q, i) => (
-            <div key={q.id || i} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-              <div className="p-4 border-b border-slate-100">
-                <p className="text-sm font-semibold text-[#0B2545]">Q{i + 1}. {q.questionText}</p>
-              </div>
-              <div className="p-4 space-y-2">
-                {(q.options || []).map((opt) => (
-                  <div key={opt.label} className="flex items-center gap-3 px-4 py-3 rounded-xl border border-slate-200 text-sm text-slate-500">
-                    <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 bg-slate-100 text-slate-400">{opt.label}</span>
-                    <span className="flex-1">{opt.text}</span>
+          {reviewQuestions.map((q, i) => {
+            const selected = q.selectedAnswer || null;
+            const correct = q.correctAnswer || null;
+            const notAnswered = !selected;
+            return (
+              <div key={q.questionId || q.id || i} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                <div className="p-4 border-b border-slate-100">
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="text-sm font-semibold text-[#0B2545]">Q{i + 1}. {q.questionText}</p>
+                    {notAnswered ? (
+                      <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-500 shrink-0">Not Answered</span>
+                    ) : correct && selected === correct ? (
+                      <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-green-50 text-green-600 shrink-0">Correct</span>
+                    ) : (
+                      <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-red-50 text-red-600 shrink-0">Wrong</span>
+                    )}
                   </div>
-                ))}
+                  {q.codeContent && (
+                    <pre className="mt-3 text-xs font-mono bg-[#0B2545] text-green-400 rounded-xl p-4 overflow-x-auto whitespace-pre-wrap">{q.codeContent}</pre>
+                  )}
+                </div>
+                <div className="p-4 space-y-2">
+                  {(q.options || []).map((opt) => {
+                    const isCorrect = correct && opt.label === correct;
+                    const isSelected = !!selected && opt.label === selected;
+                    const isWrongPick = isSelected && !isCorrect;
+                    const rowCls = isCorrect
+                      ? "border-green-300 bg-green-50"
+                      : isWrongPick
+                        ? "border-red-300 bg-red-50"
+                        : "border-slate-200 bg-white";
+                    const textCls = isCorrect
+                      ? "text-green-800"
+                      : isWrongPick
+                        ? "text-red-700"
+                        : "text-slate-500";
+                    return (
+                      <div key={opt.label} className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-sm ${rowCls} ${textCls}`}>
+                        {isCorrect ? (
+                          <CheckCircle2 size={16} className="text-green-500 shrink-0" />
+                        ) : isWrongPick ? (
+                          <XCircle size={16} className="text-red-500 shrink-0" />
+                        ) : null}
+                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${isCorrect ? "bg-green-500 text-white" : isWrongPick ? "bg-red-500 text-white" : "bg-slate-100 text-slate-400"}`}>{opt.label}</span>
+                        <span className="flex-1 font-medium">{opt.text}</span>
+                        {isCorrect && <span className="ml-auto text-[11px] font-bold text-green-600 shrink-0">Correct answer</span>}
+                        {isWrongPick && <span className="ml-auto text-[11px] font-bold text-red-600 shrink-0">Your answer</span>}
+                      </div>
+                    );
+                  })}
+                  {notAnswered && (
+                    <p className="text-xs text-slate-400 italic px-1 pt-1">You did not answer this question. The correct answer is marked in green above.</p>
+                  )}
+                </div>
+                {q.solution && q.solution.trim() && (
+                  <div className="px-4 py-3 bg-green-50/60 border-t border-green-100">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <BookOpen size={14} className="text-green-600" />
+                      <span className="text-xs font-bold text-green-700 uppercase tracking-wide">Solution</span>
+                    </div>
+                    <RichContent content={q.solution} className="text-sm text-green-900 leading-relaxed" />
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
       <div className="flex justify-center pt-2 pb-4">
@@ -445,6 +501,10 @@ export default function StudentDashboard() {
   const [inlineMockTest, setInlineMockTest] = useState(null);
   const [inlineMockResult, setInlineMockResult] = useState(null);
 
+  const [enrollingCourse, setEnrollingCourse] = useState(false);
+  const [coursePaymentBusy, setCoursePaymentBusy] = useState(false);
+  const [coursePaymentError, setCoursePaymentError] = useState(null);
+
   const [myCoursesFilter, setMyCoursesFilter] = useState("ALL");
   const [courseSearch, setCourseSearch] = useState("");
 
@@ -457,6 +517,8 @@ export default function StudentDashboard() {
   const [enrolledKitIds, setEnrolledKitIds] = useState(new Set());
   const [expandedKitModule, setExpandedKitModule] = useState(null);
   const [kitListSearch, setKitListSearch] = useState("");
+  const [kitPaymentBusy, setKitPaymentBusy] = useState(null);
+  const [kitPaymentError, setKitPaymentError] = useState(null);
 
   useEffect(() => { loadData(); }, []);
 
@@ -614,6 +676,57 @@ export default function StudentDashboard() {
     }
   };
 
+  /* Enroll flow for interview kits:
+     - Free kits enroll instantly.
+     - Paid kits go through cart -> order -> Razorpay checkout; on success
+       the backend activates the kit enrollment (OrderController +
+       PaymentController). */
+  const handleEnrollOrBuyKit = async (kit) => {
+    if (!kit || enrolledKitIds.has(kit.id)) return;
+    const isPaid = Number(kit.price || 0) > 0;
+    if (isPaid) {
+      setKitPaymentBusy(kit.id);
+      setKitPaymentError(null);
+      let orderId = null;
+      try {
+        await addKitToCart(kit.id);
+        window.dispatchEvent(new Event("cart:updated"));
+        try {
+          const { data: order } = await checkoutCart();
+          orderId = order.id;
+        } catch (err) {
+          if (err.response?.status !== 409) throw err;
+        }
+        await payOrder({
+          orderId,
+          prefill: {
+            name: [user?.firstName, user?.lastName].filter(Boolean).join(" "),
+            email: user?.email,
+          },
+        });
+        toast.success("Payment successful! Your kit is now unlocked.", {
+          iconTheme: { primary: "#00A86B", secondary: "#fff" },
+          duration: 4000,
+        });
+        window.dispatchEvent(new Event("cart:updated"));
+        await loadData();
+      } catch (err) {
+        console.error("Kit purchase failed:", err);
+        const message =
+          err.response?.data?.message ||
+          err.message ||
+          "Payment failed. Please try again.";
+        setKitPaymentError(message);
+        toast.error(message);
+        navigate("/cart");
+      } finally {
+        setKitPaymentBusy(null);
+      }
+    } else {
+      handleEnrollInKit(kit.id);
+    }
+  };
+
   const firstName = user?.firstName || "Student";
   const inProgress = enrollments.filter((e) => e.enrollmentStatus === "IN_PROGRESS" || e.enrollmentStatus === "ENROLLED");
   const completed = enrollments.filter((e) => e.enrollmentStatus === "COMPLETED");
@@ -663,6 +776,101 @@ export default function StudentDashboard() {
     }
   };
 
+  const promptEnroll = () => {
+    if (!courseDetail) return;
+    toast.error(
+      Number(courseDetail.price || 0) > 0
+        ? "Add this course to your cart and complete checkout to unlock it"
+        : "Enroll in this course to unlock its content"
+    );
+  };
+
+  const handleViewLessonFromCurriculum = (moduleId, lessonId) => {
+    if (!isEnrolled) {
+      promptEnroll();
+      return;
+    }
+    handleInlineNav("lesson", { moduleId, lessonId });
+  };
+
+  const handleViewMockTestFromCurriculum = (testId) => {
+    if (!isEnrolled) {
+      promptEnroll();
+      return;
+    }
+    handleInlineNav("test", testId);
+  };
+
+  /* Enroll flow for courses opened from My Courses:
+     - Free courses enroll instantly.
+     - Paid courses go through cart -> order -> Razorpay checkout; on
+       success the backend activates the enrollment (OrderController +
+       PaymentController). */
+  const handleEnrollOrBuy = async () => {
+    if (!courseDetail || isEnrolled) return;
+    const isPaid = Number(courseDetail.price || 0) > 0;
+    if (isPaid) {
+      setCoursePaymentBusy(true);
+      setCoursePaymentError(null);
+      let orderId = null;
+      try {
+        await addToCart(courseDetail.id);
+        window.dispatchEvent(new Event("cart:updated"));
+        try {
+          const { data: order } = await checkoutCart();
+          orderId = order.id;
+        } catch (err) {
+          if (err.response?.status !== 409) throw err;
+        }
+        const result = await payOrder({
+          orderId,
+          prefill: {
+            name: [user?.firstName, user?.lastName].filter(Boolean).join(" "),
+            email: user?.email,
+          },
+        });
+        const count = result.enrolledCourseIds?.length || 0;
+        toast.success(
+          `Payment successful!${count > 0 ? ` ${count} course${count > 1 ? "s" : ""} unlocked.` : ""}`,
+          { iconTheme: { primary: "#00A86B", secondary: "#fff" }, duration: 4000 }
+        );
+        window.dispatchEvent(new Event("cart:updated"));
+        await loadCourseDetail(courseDetail.id);
+        await loadData();
+      } catch (err) {
+        console.error("Enroll/Payment failed:", err);
+        setCoursePaymentError(
+          err.response?.data?.message || err.message || "Payment failed. Please try again."
+        );
+        toast.error(
+          err.response?.data?.message ||
+            err.message ||
+            "Payment failed. Please try again."
+        );
+        navigate("/cart");
+      } finally {
+        setCoursePaymentBusy(false);
+      }
+    } else {
+      setEnrollingCourse(true);
+      try {
+        await enrollInCourse(courseDetail.id);
+        toast.success("Enrolled successfully! Full course content unlocked.", {
+          iconTheme: { primary: "#00A86B", secondary: "#fff" },
+        });
+        await loadCourseDetail(courseDetail.id);
+        await loadData();
+      } catch (err) {
+        console.error("Failed to enroll:", err);
+        toast.error(
+          err.response?.data?.message || "Failed to enroll in this course"
+        );
+      } finally {
+        setEnrollingCourse(false);
+      }
+    }
+  };
+
   if (loading) {
     return <div className="flex items-center justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#00A86B]" /></div>;
   }
@@ -673,6 +881,7 @@ export default function StudentDashboard() {
   const isInterviewKits = path.includes("/interview-kits");
   const isSettings = path.includes("/settings");
 
+  
   /* ── Route-based: settings / profile ──────────────────────────── */
   if (isSettings) {
     return <StudentProfile embedded />;
@@ -733,9 +942,18 @@ export default function StudentDashboard() {
                           <h3 className="text-sm font-bold text-amber-800">Enroll to view the questions</h3>
                           <p className="text-xs text-amber-700 mt-1 leading-relaxed">The modules are listed below, but their questions and answers are locked until you enroll in this interview kit.</p>
                           {kitDetail.price > 0 ? (
-                            <button onClick={() => { setSelectedKit(null); setKitDetail(null); setExpandedKitModule(null); }} className="mt-3 px-5 py-2.5 bg-[#00A86B] hover:bg-[#008f5a] text-white text-xs font-bold rounded-xl shadow-md transition-colors">Enroll Now</button>
+                            <button
+                              onClick={() => handleEnrollOrBuyKit(kitDetail)}
+                              disabled={kitPaymentBusy === kitDetail.id}
+                              className="mt-3 px-5 py-2.5 bg-[#00A86B] hover:bg-[#008f5a] text-white text-xs font-bold rounded-xl shadow-md transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                            >
+                              {kitPaymentBusy === kitDetail.id ? "Processing..." : "Enroll Now"}
+                            </button>
                           ) : (
                             <button onClick={() => handleEnrollInKit(kitDetail.id)} className="mt-3 px-5 py-2.5 bg-[#00A86B] hover:bg-[#008f5a] text-white text-xs font-bold rounded-xl shadow-md transition-colors">Enroll Free</button>
+                          )}
+                          {kitPaymentError && (
+                            <p className="mt-2 text-xs font-semibold text-red-600">{kitPaymentError}</p>
                           )}
                         </div>
                       </div>
@@ -904,25 +1122,77 @@ export default function StudentDashboard() {
                     {courseDetail.language && <span className="flex items-center gap-1"><Globe className="w-4 h-4" />{courseDetail.language}</span>}
                   </div>
                 </div>
-                {courseDetail.thumbnailUrl && <img src={courseDetail.thumbnailUrl} alt={courseDetail.title} className="w-full lg:w-48 h-32 object-cover rounded-xl" />}
+                <div className="flex items-center gap-4">
+                  {courseDetail.thumbnailUrl && <img src={courseDetail.thumbnailUrl} alt={courseDetail.title} className="w-full lg:w-48 h-32 object-cover rounded-xl" />}
+                  {!isEnrolled && (
+                    <div className="bg-white rounded-2xl p-5 text-[#0B2545] shadow-xl lg:w-64 shrink-0">
+                      <div className="flex items-baseline gap-2 mb-1">
+                        <span className="text-3xl font-black">₹{courseDetail.price || 0}</span>
+                        {(courseDetail.price || 0) > 0 && (
+                          <span className="text-sm text-slate-400 line-through">₹{courseDetail.originalPrice || Math.round((courseDetail.price || 0) * 2)}</span>
+                        )}
+                      </div>
+                      {(courseDetail.price || 0) > 0 && (
+                        <p className="text-xs text-slate-400 mb-4">One-time payment &middot; lifetime access</p>
+                      )}
+                      <button
+                        onClick={handleEnrollOrBuy}
+                        disabled={enrollingCourse || coursePaymentBusy}
+                        className="w-full py-3 bg-[#00A86B] hover:bg-[#008f5a] text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        {coursePaymentBusy
+                          ? "Adding..."
+                          : enrollingCourse
+                          ? "Enrolling..."
+                          : (courseDetail.price || 0) > 0
+                          ? "Enroll Now"
+                          : "Enroll Free"}
+                      </button>
+                      {coursePaymentError && <p className="text-[11px] text-red-500 mt-2 text-center">{coursePaymentError}</p>}
+                      <p className="mt-3 flex items-center justify-center gap-1.5 text-[11px] font-semibold text-[#00A86B]">
+                        <Lock className="w-3 h-3" /> Enroll to unlock lessons & mock tests
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
             <div className="bg-white rounded-2xl border border-slate-100 p-6">
               <h2 className="text-lg font-bold text-[#0B2545] mb-4">Curriculum</h2>
-              {isEnrolled && <p className="text-xs text-[#00A86B] font-semibold mb-4">All modules unlocked — start learning!</p>}
+              {isEnrolled ? (
+                <p className="text-xs text-[#00A86B] font-semibold mb-4">All modules unlocked — start learning!</p>
+              ) : (
+                <p className="text-xs text-slate-500 font-semibold mb-4">
+                  All content is locked — <span className="text-[#00A86B]">enroll to unlock lessons & mock tests</span>
+                </p>
+              )}
               <div className="space-y-3">
                 {[...courseModules].sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0)).map((mod) => {
                   const lessons = lessonsByModule[mod.id] || [];
                   const tests = mockTestsByModule[mod.id] || [];
                   const isExpanded = expandedModule === mod.id;
+                  const locked = !isEnrolled;
                   return (
                     <div key={mod.id} className="border border-slate-100 rounded-xl overflow-hidden">
-                      <button onClick={() => setExpandedModule(isExpanded ? null : mod.id)} className="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-colors text-left">
-                        <div className="flex items-center gap-3">
-                          {isExpanded ? <ChevronDown className="w-5 h-5 text-slate-400" /> : <ChevronRight className="w-5 h-5 text-slate-400" />}
-                          <span className="font-semibold text-[#0B2545] text-sm">Module {mod.displayOrder}: {mod.title}</span>
+                      <button
+                        onClick={() => setExpandedModule(isExpanded ? null : mod.id)}
+                        className="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-colors text-left"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          {locked ? (
+                            <Lock className="w-4 h-4 text-slate-300 flex-shrink-0" />
+                          ) : isExpanded ? (
+                            <ChevronDown className="w-5 h-5 text-slate-400 flex-shrink-0" />
+                          ) : (
+                            <ChevronRight className="w-5 h-5 text-slate-400 flex-shrink-0" />
+                          )}
+                          <span className={`font-semibold text-sm truncate ${locked ? "text-slate-400" : "text-[#0B2545]"}`}>Module {mod.displayOrder}: {mod.title}</span>
                         </div>
-                        <span className="text-xs text-slate-400">{lessons.length} lessons{tests.length > 0 ? ` · ${tests.length} test${tests.length > 1 ? "s" : ""}` : ""}</span>
+                        <span className="text-xs text-slate-400 flex-shrink-0 ml-3">
+                          {locked
+                            ? `${lessons.length} lessons${tests.length > 0 ? ` · ${tests.length} test${tests.length > 1 ? "s" : ""}` : ""} · Locked`
+                            : `${lessons.length} lessons${tests.length > 0 ? ` · ${tests.length} test${tests.length > 1 ? "s" : ""}` : ""}`}
+                        </span>
                       </button>
                       {isExpanded && (
                         <div className="border-t border-slate-100 bg-slate-50/50">
@@ -933,9 +1203,13 @@ export default function StudentDashboard() {
                                 Lessons
                               </p>
                               {[...lessons].sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0)).map((lesson) => (
-                                <button key={lesson.id} onClick={() => handleInlineNav("lesson", { moduleId: mod.id, lessonId: lesson.id })} className="w-full flex items-center gap-3 px-6 py-3 hover:bg-slate-100 transition-colors text-left border-b border-slate-100 last:border-0">
-                                  <BookOpenCheck className="w-4 h-4 text-[#00A86B] flex-shrink-0" />
-                                  <span className="text-sm text-slate-600">{lesson.title}</span>
+                                <button key={lesson.id} onClick={() => handleViewLessonFromCurriculum(mod.id, lesson.id)} className={`w-full flex items-center gap-3 px-6 py-3 transition-colors text-left border-b border-slate-100 last:border-0 ${locked ? "hover:bg-slate-100 cursor-not-allowed" : "hover:bg-slate-100"}`}>
+                                  {locked ? (
+                                    <Lock className="w-4 h-4 text-slate-300 flex-shrink-0" />
+                                  ) : (
+                                    <BookOpenCheck className="w-4 h-4 text-[#00A86B] flex-shrink-0" />
+                                  )}
+                                  <span className={`text-sm ${locked ? "text-slate-400" : "text-slate-600"}`}>{lesson.title}</span>
                                   {lesson.estimatedMinutes && <span className="text-xs text-slate-400 ml-auto">{lesson.estimatedMinutes} min</span>}
                                 </button>
                               ))}
@@ -948,9 +1222,13 @@ export default function StudentDashboard() {
                                 Mock Tests
                               </p>
                               {[...tests].sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0)).map((test) => (
-                                <button key={test.id} onClick={() => handleInlineNav("test", test.id)} className="w-full flex items-center gap-3 px-6 py-3 hover:bg-slate-100 transition-colors text-left border-b border-slate-100 last:border-0">
-                                  <NotebookPen className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                                  <span className="text-sm text-slate-600">{test.title}</span>
+                                <button key={test.id} onClick={() => handleViewMockTestFromCurriculum(test.id)} className={`w-full flex items-center gap-3 px-6 py-3 transition-colors text-left border-b border-slate-100 last:border-0 ${locked ? "hover:bg-slate-100 cursor-not-allowed" : "hover:bg-slate-100"}`}>
+                                  {locked ? (
+                                    <Lock className="w-4 h-4 text-slate-300 flex-shrink-0" />
+                                  ) : (
+                                    <NotebookPen className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                                  )}
+                                  <span className={`text-sm ${locked ? "text-slate-400" : "text-slate-600"}`}>{test.title}</span>
                                   <span className="text-xs text-slate-400 ml-auto">{(test.questions || []).length} questions</span>
                                 </button>
                               ))}
@@ -971,10 +1249,10 @@ export default function StudentDashboard() {
                     <div key={cm.id} className="rounded-xl overflow-hidden border border-[#00A86B]/30">
                       <button onClick={() => { if (!isExpanded) { setExpandedModule(`cm:${cm.id}`); if (!content?.loaded) loadCourseLinkContent(cm); } else { setExpandedModule(null); } }} className="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-colors text-left">
                         <div className="flex items-center gap-3 min-w-0">
-                          {isExpanded ? <ChevronDown className="w-5 h-5 text-[#00A86B] flex-shrink-0" /> : <ChevronRight className="w-5 h-5 text-[#00A86B] flex-shrink-0" />}
+                          {!isEnrolled ? <Lock className="w-4 h-4 text-slate-300 flex-shrink-0" /> : isExpanded ? <ChevronDown className="w-5 h-5 text-[#00A86B] flex-shrink-0" /> : <ChevronRight className="w-5 h-5 text-[#00A86B] flex-shrink-0" />}
                           <BookOpen className="w-5 h-5 text-[#00A86B] flex-shrink-0" />
                           <div className="min-w-0">
-                            <span className="font-semibold text-[#0B2545] text-sm truncate block">{cm.displayOrder}. {cm.title}</span>
+                            <span className={`font-semibold text-sm truncate block ${!isEnrolled ? "text-slate-400" : "text-[#0B2545]"}`}>{cm.displayOrder}. {cm.title}</span>
                             <span className="text-xs font-semibold text-[#008f5a]">Type: Existing Course</span>
                           </div>
                         </div>
@@ -992,6 +1270,7 @@ export default function StudentDashboard() {
                                 <div className="flex items-center gap-2 mb-2">
                                   <span className="text-xs px-1.5 py-0.5 bg-[#00A86B]/10 text-[#008f5a] rounded flex-shrink-0 font-semibold">Module {mod.displayOrder}: {mod.title}</span>
                                   <span className="text-xs text-slate-400">{cLessons.length} lessons{cTests.length > 0 ? ` · ${cTests.length} mock test${cTests.length === 1 ? "" : "s"}` : ""}</span>
+                                  {!isEnrolled && <span className="text-xs text-slate-400 flex-shrink-0">· Locked</span>}
                                 </div>
                                 {cLessons.length > 0 && (
                                   <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide mt-3 mb-1 flex items-center gap-1.5">
@@ -1000,9 +1279,13 @@ export default function StudentDashboard() {
                                   </p>
                                 )}
                                 {cLessons.map((lesson) => (
-                                  <button key={lesson.id} onClick={() => handleInlineNav("lesson", { moduleId: mod.id, lessonId: lesson.id })} className="w-full flex items-center gap-3 px-4 py-2 hover:bg-slate-50 transition-colors text-left">
-                                    <BookOpenCheck className="w-4 h-4 text-[#00A86B] flex-shrink-0" />
-                                    <span className="text-sm text-slate-600">{lesson.title}</span>
+                                  <button key={lesson.id} onClick={() => handleViewLessonFromCurriculum(mod.id, lesson.id)} className={`w-full flex items-center gap-3 px-4 py-2 hover:bg-slate-50 transition-colors text-left ${!isEnrolled ? "cursor-not-allowed" : ""}`}>
+                                    {!isEnrolled ? (
+                                      <Lock className="w-4 h-4 text-slate-300 flex-shrink-0" />
+                                    ) : (
+                                      <BookOpenCheck className="w-4 h-4 text-[#00A86B] flex-shrink-0" />
+                                    )}
+                                    <span className={`text-sm ${!isEnrolled ? "text-slate-400" : "text-slate-600"}`}>{lesson.title}</span>
                                     {lesson.estimatedMinutes && <span className="text-xs text-slate-400 ml-auto">{lesson.estimatedMinutes} min</span>}
                                   </button>
                                 ))}
@@ -1013,9 +1296,13 @@ export default function StudentDashboard() {
                                   </p>
                                 )}
                                 {cTests.length > 0 && cTests.map((test) => (
-                                  <button key={test.id} onClick={() => handleInlineNav("test", test.id)} className="w-full flex items-center gap-3 px-4 py-2 hover:bg-slate-50 transition-colors text-left">
-                                    <NotebookPen className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                                    <span className="text-sm text-slate-600">{test.title}</span>
+                                  <button key={test.id} onClick={() => handleViewMockTestFromCurriculum(test.id)} className={`w-full flex items-center gap-3 px-4 py-2 hover:bg-slate-50 transition-colors text-left ${!isEnrolled ? "cursor-not-allowed" : ""}`}>
+                                    {!isEnrolled ? (
+                                      <Lock className="w-4 h-4 text-slate-300 flex-shrink-0" />
+                                    ) : (
+                                      <NotebookPen className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                                    )}
+                                    <span className={`text-sm ${!isEnrolled ? "text-slate-400" : "text-slate-600"}`}>{test.title}</span>
                                   </button>
                                 ))}
                               </div>
@@ -1028,6 +1315,33 @@ export default function StudentDashboard() {
                 })}
                 {courseModules.length === 0 && courseLinks.length === 0 && <p className="text-sm text-slate-400 text-center py-6">Curriculum coming soon</p>}
               </div>
+
+              {/* Enroll CTA under curriculum for non-enrolled courses */}
+              {!isEnrolled && (
+                <div className="mt-4 bg-gradient-to-r from-[#0B2545] to-[#13315c] rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="text-white">
+                    <p className="font-bold">{courseModules.length} module{courseModules.length !== 1 ? "s" : ""} · all lessons & mock tests locked</p>
+                    <p className="text-xs text-slate-300 mt-0.5">
+                      {(courseDetail.price || 0) > 0
+                        ? "Enroll now to unlock the full course content — checkout securely via Razorpay"
+                        : "Enroll now to unlock the full course content, lessons and mock tests"}
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleEnrollOrBuy}
+                    disabled={enrollingCourse || coursePaymentBusy}
+                    className="flex-shrink-0 px-6 py-2.5 bg-[#00A86B] hover:bg-[#008f5a] text-white text-sm font-bold rounded-xl shadow-md transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {coursePaymentBusy
+                      ? "Adding to Cart..."
+                      : enrollingCourse
+                      ? "Enrolling..."
+                      : (courseDetail.price || 0) > 0
+                      ? "Enroll Now - Proceed to Pay"
+                      : "Enroll Free"}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         ) : (
@@ -1250,8 +1564,12 @@ export default function StudentDashboard() {
                     <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
                       <span className="text-xs font-bold text-[#00A86B]">{kit.price > 0 ? `₹${kit.price}` : "Free"}</span>
                       {kit.price > 0 ? (
-                        <button className="px-3 py-1.5 bg-[#00A86B] hover:bg-[#008f5a] text-white text-xs font-semibold rounded-lg transition-colors">
-                          Enroll Now
+                        <button
+                          onClick={() => handleEnrollOrBuyKit(kit)}
+                          disabled={kitPaymentBusy === kit.id}
+                          className="px-3 py-1.5 bg-[#00A86B] hover:bg-[#008f5a] text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                          {kitPaymentBusy === kit.id ? "Processing..." : "Enroll Now"}
                         </button>
                       ) : (
                         <button
@@ -1279,53 +1597,130 @@ export default function StudentDashboard() {
   }
 
   /* ── MY COURSES VIEW ──────────────────────────────────────── */
+  const availableCourses = publishedCourses.filter((c) => !enrolledIds.has(c.id));
+  const filteredAvailable = availableCourses.filter((c) =>
+    courseSearch ? c.title?.toLowerCase().includes(courseSearch.toLowerCase()) : true
+  );
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">My Courses</h1>
-          <p className="text-sm text-slate-500 mt-0.5">{enrollments.length} enrolled course{enrollments.length !== 1 ? "s" : ""}</p>
+          <p className="text-sm text-slate-500 mt-0.5">
+            {enrollments.length} enrolled course{enrollments.length !== 1 ? "s" : ""} · {availableCourses.length} available
+          </p>
         </div>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input type="text" placeholder="Search courses..." value={courseSearch} onChange={(e) => setCourseSearch(e.target.value)} className="pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#00A86B]/20 focus:border-[#00A86B] w-48" />
         </div>
       </div>
-      <div className="flex gap-2">
-        {["ALL", "IN_PROGRESS", "COMPLETED"].map((f) => (
-          <button key={f} onClick={() => setMyCoursesFilter(f)} className={`px-4 py-2 rounded-xl text-xs font-semibold transition-colors ${myCoursesFilter === f ? "bg-[#00A86B] text-white" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
-            {f === "ALL" ? "All" : f === "IN_PROGRESS" ? "In Progress" : "Completed"}
-          </button>
-        ))}
+
+      {/* Enrolled Courses */}
+      <div>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
+          <h2 className="font-semibold text-slate-800">
+            My Courses
+            <span className="ml-2 text-[11px] font-semibold text-[#00A86B] bg-[#00A86B]/10 px-2 py-0.5 rounded-full">{enrollments.length}</span>
+          </h2>
+          <div className="flex gap-2">
+            {["ALL", "IN_PROGRESS", "COMPLETED"].map((f) => (
+              <button key={f} onClick={() => setMyCoursesFilter(f)} className={`px-4 py-2 rounded-xl text-xs font-semibold transition-colors ${myCoursesFilter === f ? "bg-[#00A86B] text-white" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
+                {f === "ALL" ? "All" : f === "IN_PROGRESS" ? "In Progress" : "Completed"}
+              </button>
+            ))}
+          </div>
+        </div>
+        {filteredMyCourses.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 text-center">
+            <BookOpen className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+            <h2 className="text-lg font-bold text-[#0B2545] mb-2">{enrollments.length === 0 ? "No courses yet" : "No courses match your filter"}</h2>
+            <p className="text-sm text-slate-500 mb-6 max-w-md mx-auto">{enrollments.length === 0 ? "Explore the available courses below and start learning today." : "Try a different filter or search term."}</p>
+            {enrollments.length === 0 && <button onClick={() => navigate("/courses")} className="inline-flex items-center gap-2 bg-[#00A86B] hover:bg-[#008f5a] text-white font-semibold px-6 py-3 rounded-xl transition-all">Browse Courses</button>}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredMyCourses.map((course, i) => {
+              const grad = COURSE_GRADIENTS[i % COURSE_GRADIENTS.length];
+              const levelStyle = LEVEL_COLORS[course.level] || LEVEL_COLORS.BEGINNER;
+              return (
+                <div key={course.courseId} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow cursor-pointer" onClick={() => openCourseDetail(course.courseId)}>
+                  <div className="h-36 flex items-center justify-center relative overflow-hidden">
+                    {course.thumbnailUrl ? <img src={course.thumbnailUrl} alt={course.title} className="w-full h-full object-cover" /> : <div className={`w-full h-full bg-gradient-to-br ${grad.bg} flex items-center justify-center`}><span className="text-3xl font-black" style={{ color: grad.accent }}>{(course.title || "C").charAt(0)}</span></div>}
+                    <span className={`absolute top-3 right-3 text-[10px] font-semibold px-2.5 py-1 rounded-full ${STATUS_COLORS[course.enrollmentStatus] || "bg-slate-100 text-slate-500"}`}>{course.enrollmentStatus?.replace("_", " ")}</span>
+                  </div>
+                  <div className="p-4">
+                    <p className="text-sm font-bold text-slate-800 leading-snug line-clamp-2">{course.title}</p>
+                    <div className="flex items-center gap-2 mt-2">{course.level && <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${levelStyle.bg} ${levelStyle.text}`}>{course.level}</span>}</div>
+                    <div className="mt-3 flex items-center gap-2"><div className="flex-1 bg-slate-100 rounded-full h-2 overflow-hidden"><div className="h-2 rounded-full bg-[#00A86B]" style={{ width: `${course.progressPercentage || 0}%` }} /></div><span className="text-xs font-medium text-slate-500 shrink-0">{course.progressPercentage || 0}%</span></div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
-      {filteredMyCourses.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 text-center">
-          <BookOpen className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-          <h2 className="text-lg font-bold text-[#0B2545] mb-2">{enrollments.length === 0 ? "No courses yet" : "No courses match your filter"}</h2>
-          <p className="text-sm text-slate-500 mb-6 max-w-md mx-auto">{enrollments.length === 0 ? "Enroll in a course to get started." : "Try a different filter or search term."}</p>
-          {enrollments.length === 0 && <button onClick={() => navigate("/courses")} className="inline-flex items-center gap-2 bg-[#00A86B] hover:bg-[#008f5a] text-white font-semibold px-6 py-3 rounded-xl transition-all">Browse Courses</button>}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredMyCourses.map((course, i) => {
-            const grad = COURSE_GRADIENTS[i % COURSE_GRADIENTS.length];
-            const levelStyle = LEVEL_COLORS[course.level] || LEVEL_COLORS.BEGINNER;
-            return (
-              <div key={course.courseId} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow cursor-pointer" onClick={() => openCourseDetail(course.courseId)}>
-                <div className="h-36 flex items-center justify-center relative overflow-hidden">
-                  {course.thumbnailUrl ? <img src={course.thumbnailUrl} alt={course.title} className="w-full h-full object-cover" /> : <div className={`w-full h-full bg-gradient-to-br ${grad.bg} flex items-center justify-center`}><span className="text-3xl font-black" style={{ color: grad.accent }}>{(course.title || "C").charAt(0)}</span></div>}
-                  <span className={`absolute top-3 right-3 text-[10px] font-semibold px-2.5 py-1 rounded-full ${STATUS_COLORS[course.enrollmentStatus] || "bg-slate-100 text-slate-500"}`}>{course.enrollmentStatus?.replace("_", " ")}</span>
+
+      {/* Available Courses */}
+      <div>
+        <h2 className="font-semibold text-slate-800 mb-3">
+          Available Courses
+          <span className="ml-2 text-[11px] font-semibold text-[#00A86B] bg-[#00A86B]/10 px-2 py-0.5 rounded-full">{filteredAvailable.length}</span>
+        </h2>
+        {publishedCourses.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 text-center">
+            <BookOpen className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+            <h2 className="text-lg font-bold text-[#0B2545] mb-2">No available courses yet</h2>
+            <p className="text-sm text-slate-500">New courses will appear here once published.</p>
+          </div>
+        ) : filteredAvailable.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 text-center">
+            <Search className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+            <h2 className="text-lg font-bold text-[#0B2545] mb-2">No courses match "{courseSearch}"</h2>
+            <p className="text-sm text-slate-500">Try a different search term.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredAvailable.map((course, i) => {
+              const enriched = enrichCourse(course, i);
+              const grad = COURSE_GRADIENTS[(i + 1) % COURSE_GRADIENTS.length];
+              const levelStyle = LEVEL_COLORS[course.level] || LEVEL_COLORS.BEGINNER;
+              return (
+                <div key={course.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+                  <div className="h-36 flex items-center justify-center relative overflow-hidden cursor-pointer" onClick={() => openCourseDetail(course.id)}>
+                    {course.thumbnailUrl ? <img src={course.thumbnailUrl} alt={course.title} className="w-full h-full object-cover" /> : <div className={`w-full h-full bg-gradient-to-br ${grad.bg} flex items-center justify-center`}><span className="text-3xl font-black" style={{ color: grad.accent }}>{(course.title || "N").charAt(0)}</span></div>}
+                    <span className="absolute top-3 right-3 text-[10px] font-semibold px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 flex items-center gap-1">
+                      <Lock className="w-3 h-3" /> Not Enrolled
+                    </span>
+                  </div>
+                  <div className="p-4">
+                    <p className="text-sm font-bold text-slate-800 leading-snug line-clamp-2">{course.title}</p>
+                    <div className="flex items-center gap-2 mt-2">
+                      {course.level && <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${levelStyle.bg} ${levelStyle.text}`}>{course.level}</span>}
+                      <span className="text-[10px] text-slate-400">{course.language || "English"}</span>
+                    </div>
+                    <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-sm font-black text-[#0B2545]">₹{enriched.price}</span>
+                        {enriched.originalPrice > (enriched.price || 0) && (
+                          <span className="text-[10px] text-slate-400 line-through">₹{enriched.originalPrice}</span>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => openCourseDetail(course.id)}
+                        className="px-3 py-1.5 bg-[#00A86B] hover:bg-[#008f5a] text-white text-xs font-semibold rounded-lg transition-colors"
+                      >
+                        View Course
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                <div className="p-4">
-                  <p className="text-sm font-bold text-slate-800 leading-snug line-clamp-2">{course.title}</p>
-                  <div className="flex items-center gap-2 mt-2">{course.level && <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${levelStyle.bg} ${levelStyle.text}`}>{course.level}</span>}</div>
-                  <div className="mt-3 flex items-center gap-2"><div className="flex-1 bg-slate-100 rounded-full h-2 overflow-hidden"><div className="h-2 rounded-full bg-[#00A86B]" style={{ width: `${course.progressPercentage || 0}%` }} /></div><span className="text-xs font-medium text-slate-500 shrink-0">{course.progressPercentage || 0}%</span></div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
