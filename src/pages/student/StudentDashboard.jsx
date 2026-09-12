@@ -51,6 +51,7 @@ import {
   submitMockTestAttempt,
   getMyMockTestAttempt,
 } from "../../api/mockTestService";
+import { getProgrammingQuestions } from "../../api/programmingQuestionService";
 import {
   getMyEnrolledKits,
   getPublishedKits,
@@ -61,8 +62,15 @@ import RenderAnswer from "../../components/admin/RenderAnswer";
 import StudentProfile from "./StudentProfile";
 import { useAuth } from "../../context/AuthContext";
 import CodePlayground from "../../components/CodePlayground";
+import ProgrammingQuestionView from "./ProgrammingQuestionView";
 import { isExecutableLanguage } from "../../api/codeExecutionService";
 import { enrichCourse } from "../../lib/staticCatalog";
+
+const PQ_DIFFICULTY_COLORS = {
+  EASY: { bg: "bg-green-100", text: "text-green-700" },
+  MEDIUM: { bg: "bg-amber-100", text: "text-amber-700" },
+  HARD: { bg: "bg-red-100", text: "text-red-700" },
+};
 
 const LEVEL_COLORS = {
   BEGINNER: { bg: "bg-green-100", text: "text-green-700" },
@@ -480,7 +488,7 @@ export default function StudentDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const { courseId: routeCourseId, moduleId, lessonId, mockTestId } = useParams();
+  const { courseId: routeCourseId, moduleId, lessonId, mockTestId, questionId: programmingQuestionId } = useParams();
 
   const [enrollments, setEnrollments] = useState([]);
   const [publishedCourses, setPublishedCourses] = useState([]);
@@ -492,6 +500,7 @@ export default function StudentDashboard() {
   const [courseLinkContent, setCourseLinkContent] = useState({});
   const [lessonsByModule, setLessonsByModule] = useState({});
   const [mockTestsByModule, setMockTestsByModule] = useState({});
+  const [programmingQuestions, setProgrammingQuestions] = useState([]);
   const [courseLoading, setCourseLoading] = useState(false);
   const [courseLoadFailed, setCourseLoadFailed] = useState(false);
   const [expandedModule, setExpandedModule] = useState(null);
@@ -553,6 +562,7 @@ export default function StudentDashboard() {
     setCourseLinkContent({});
     setLessonsByModule({});
     setMockTestsByModule({});
+    setProgrammingQuestions([]);
     setExpandedModule(null);
     setCourseEnrollment(null);
     try {
@@ -561,6 +571,7 @@ export default function StudentDashboard() {
       const mods = modulesRes.data;
       setCourseModules(mods);
       try { const cmRes = await getCourseModules(courseId); setCourseLinks(cmRes.data || []); } catch { setCourseLinks([]); }
+      try { const { data: pqRes } = await getProgrammingQuestions(courseId); setProgrammingQuestions(Array.isArray(pqRes) ? pqRes : []); } catch { setProgrammingQuestions([]); }
       try { const { data } = await getEnrollment(courseId); setCourseEnrollment(data); } catch { setCourseEnrollment(null); }
       const results = await Promise.all(
         mods.map((m) =>
@@ -593,6 +604,7 @@ export default function StudentDashboard() {
       setCourseLinkContent({});
       setLessonsByModule({});
       setMockTestsByModule({});
+      setProgrammingQuestions([]);
       setExpandedModule(null);
       setCourseEnrollment(null);
       setInlineLesson(null);
@@ -799,6 +811,20 @@ export default function StudentDashboard() {
       return;
     }
     handleInlineNav("test", testId);
+  };
+
+  const handleViewProgrammingQuestion = (questionId) => {
+    if (!isEnrolled) {
+      promptEnroll();
+      return;
+    }
+    navigate(`/StudentDashboard/my-courses/${routeCourseId}/programming/${questionId}`);
+  };
+
+  const handleProgrammingSubmissionComplete = (questionId, status) => {
+    setProgrammingQuestions((prev) =>
+      prev.map((q) => (q.id === questionId ? { ...q, studentStatus: status } : q))
+    );
   };
 
   /* Enroll flow for courses opened from My Courses:
@@ -1076,6 +1102,19 @@ export default function StudentDashboard() {
     );
   }
 
+  /* ── Route-based: programming question ─────────────────────── */
+  if (programmingQuestionId) {
+    return (
+      <div className="p-6">
+        <ProgrammingQuestionView
+          questionId={programmingQuestionId}
+          onBack={() => navigate(-1)}
+          onSubmissionComplete={handleProgrammingSubmissionComplete}
+        />
+      </div>
+    );
+  }
+
   /* ── State-based: inline lesson/mock test (from course detail) ── */
   if (inlineLesson) {
     return (
@@ -1315,6 +1354,35 @@ export default function StudentDashboard() {
                 })}
                 {courseModules.length === 0 && courseLinks.length === 0 && <p className="text-sm text-slate-400 text-center py-6">Curriculum coming soon</p>}
               </div>
+
+              {programmingQuestions.length > 0 && (
+                <div className="mt-4">
+                  <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                    Programming Questions
+                  </p>
+                  <div className="divide-y divide-slate-100 border border-slate-100 rounded-xl overflow-hidden bg-slate-50/50">
+                    {[...programmingQuestions].sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0)).map((pq) => {
+                      const pqDiff = PQ_DIFFICULTY_COLORS[pq.difficulty] || PQ_DIFFICULTY_COLORS.MEDIUM;
+                      const pqStatus = pq.studentStatus || "NOT_ATTEMPTED";
+                      return (
+                        <button key={pq.id} onClick={() => handleViewProgrammingQuestion(pq.id)} className={`w-full flex items-center gap-3 px-6 py-3 transition-colors text-left border-b border-slate-100 last:border-0 ${!isEnrolled ? "hover:bg-slate-100 cursor-not-allowed" : "hover:bg-slate-100"}`}>
+                          {!isEnrolled ? (
+                            <Lock className="w-4 h-4 text-slate-300 flex-shrink-0" />
+                          ) : pqStatus === "ACCEPTED" ? (
+                            <span title="Accepted" className="w-4 h-4 rounded-full bg-green-500 border-2 border-green-600 flex-shrink-0" />
+                          ) : pqStatus === "ATTEMPTED" ? (
+                            <span title="Attempted" className="w-4 h-4 rounded-full bg-amber-700 border-2 border-amber-800 flex-shrink-0" />
+                          ) : (
+                            <span title="Not attempted" className="w-4 h-4 rounded-full border-2 border-slate-300 flex-shrink-0" />
+                          )}
+                          <span className={`text-sm flex-1 truncate ${!isEnrolled ? "text-slate-400" : "text-slate-600"}`}>{pq.title}</span>
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 ${pqDiff.bg} ${pqDiff.text}`}>{pq.difficulty}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Enroll CTA under curriculum for non-enrolled courses */}
               {!isEnrolled && (

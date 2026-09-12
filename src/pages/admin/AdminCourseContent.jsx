@@ -14,6 +14,7 @@ import {
   ArrowDown,
   ClipboardList,
   BookOpen,
+  Code2,
 } from "lucide-react";
 import {
   getCourseById,
@@ -39,6 +40,13 @@ import {
   deleteMockTest,
   OPTION_LABELS,
 } from "../../api/mockTestService";
+import {
+  SUPPORTED_PROGRAMMING_LANGUAGES,
+  getProgrammingQuestions,
+  createProgrammingQuestion,
+  updateProgrammingQuestion,
+  deleteProgrammingQuestion,
+} from "../../api/programmingQuestionService";
 import RichTextEditor from "../../components/RichTextEditor";
 import useListMovable from "../../hooks/useListMovable";
 import DeleteConfirmModal from "../../components/ui/DeleteConfirmModal";
@@ -107,6 +115,36 @@ const emptyTestForm = (displayOrder) => ({
   passPercentage: 50,
   displayOrder,
   questions: [],
+});
+
+const DIFFICULTY_LEVELS = ["EASY", "MEDIUM", "HARD"];
+const DIFFICULTY_STYLES = {
+  EASY: "bg-green-100 text-green-700",
+  MEDIUM: "bg-amber-100 text-amber-700",
+  HARD: "bg-red-100 text-red-700",
+};
+
+let __pqSeq = 1000;
+const newProgrammingTestCase = () => ({
+  input: "",
+  expectedOutput: "",
+  isPublic: true,
+  displayOrder: 1,
+  _key: `tc-${++__pqSeq}`,
+});
+
+const emptyProgrammingQuestion = (displayOrder) => ({
+  title: "",
+  problemStatement: "",
+  difficulty: "MEDIUM",
+  allowedLanguages: [...SUPPORTED_PROGRAMMING_LANGUAGES],
+  inputFormat: "",
+  outputFormat: "",
+  constraints: "",
+  sampleInput: "",
+  sampleOutput: "",
+  displayOrder,
+  testCases: [newProgrammingTestCase()],
 });
 
 function QuestionEditor({ question, index, onChange, onRemove }) {
@@ -747,6 +785,254 @@ function mapCourseModuleError(err) {
   return "Unable to add the course module. Please try again.";
 }
 
+function ProgrammingTestCaseEditor({ testCase, index, onChange, onRemove }) {
+  const inputCls =
+    "w-full px-3 py-2 text-sm bg-white rounded-lg border border-slate-200 focus:border-[#00A86B] focus:outline-none";
+  const monoCls =
+    "w-full px-3 py-2 text-sm font-mono bg-[#0B2545] text-green-400 rounded-lg border border-slate-700 focus:outline-none resize-y";
+
+  return (
+    <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-bold text-slate-500">Test Case {index + 1}</span>
+        {onRemove && (
+          <button type="button" onClick={onRemove} className="p-1 text-red-400 hover:text-red-600">
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-semibold text-slate-500 uppercase mb-1 tracking-wide">Input</label>
+          <textarea
+            value={testCase.input || ""}
+            onChange={(e) => onChange({ ...testCase, input: e.target.value })}
+            rows={3}
+            className={monoCls}
+            placeholder="Program input fed to stdin"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-slate-500 uppercase mb-1 tracking-wide">Expected Output</label>
+          <textarea
+            value={testCase.expectedOutput || ""}
+            onChange={(e) => onChange({ ...testCase, expectedOutput: e.target.value })}
+            rows={3}
+            className={monoCls}
+            placeholder="Exact expected program output"
+          />
+        </div>
+      </div>
+      <label className="flex items-center gap-2 text-xs font-semibold text-slate-500 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={testCase.isPublic !== false}
+          onChange={(e) => onChange({ ...testCase, isPublic: e.target.checked })}
+          className="w-3.5 h-3.5 accent-[#00A86B]"
+        />
+        Public test case (visible to students)
+      </label>
+    </div>
+  );
+}
+
+function ProgrammingQuestionForm({ initial, onSave, onCancel, saving }) {
+  const [form, setForm] = useState(() => ({
+    ...initial,
+    testCases: (initial.testCases || []).map((tc) => ({
+      ...tc,
+      _key: tc._key || `tc-${++__pqSeq}`,
+    })),
+  }));
+
+  const inputCls =
+    "w-full px-3 py-2 text-sm bg-white rounded-lg border border-slate-200 focus:border-[#00A86B] focus:outline-none";
+  const labelCls =
+    "block text-xs font-semibold text-slate-500 uppercase mb-1 tracking-wide";
+
+  const set = (field) => (e) =>
+    setForm((prev) => ({ ...prev, [field]: e.target.value }));
+
+  const setTestCase = (index, patch) =>
+    setForm((prev) => ({
+      ...prev,
+      testCases: prev.testCases.map((tc, i) => (i === index ? { ...tc, ...patch } : tc)),
+    }));
+
+  const addTestCase = () =>
+    setForm((prev) => ({
+      ...prev,
+      testCases: [
+        ...prev.testCases,
+        { ...newProgrammingTestCase(), displayOrder: prev.testCases.length + 1 },
+      ],
+    }));
+
+  const removeTestCase = (index) =>
+    setForm((prev) => ({
+      ...prev,
+      testCases: prev.testCases.filter((_, i) => i !== index),
+    }));
+
+  const toggleLanguage = (lang) =>
+    setForm((prev) => {
+      const has = prev.allowedLanguages.includes(lang);
+      return {
+        ...prev,
+        allowedLanguages: has
+          ? prev.allowedLanguages.filter((l) => l !== lang)
+          : [...prev.allowedLanguages, lang],
+      };
+    });
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSave({
+      ...form,
+      displayOrder: Number(form.displayOrder) || 1,
+      testCases: form.testCases.map(({ _key, ...tc }, i) => ({
+        ...tc,
+        displayOrder: i + 1,
+      })),
+    });
+  };
+
+  return (
+    <div className="border-t border-slate-100 p-4 space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="sm:col-span-2">
+          <label className={labelCls}>Question Title *</label>
+          <input
+            type="text"
+            value={form.title}
+            onChange={set("title")}
+            className={inputCls}
+            placeholder="e.g. Two Sum"
+          />
+        </div>
+        <div>
+          <label className={labelCls}>Difficulty *</label>
+          <select value={form.difficulty} onChange={set("difficulty")} className={inputCls}>
+            {DIFFICULTY_LEVELS.map((d) => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label className={labelCls}>Problem Statement *</label>
+        <RichTextEditor
+          value={form.problemStatement}
+          onChange={(html) => setForm((prev) => ({ ...prev, problemStatement: html }))}
+          placeholder="Describe the problem, with formatted text if needed"
+          minHeight="140px"
+        />
+      </div>
+
+      <div>
+        <label className={labelCls}>Allowed Programming Languages</label>
+        <div className="flex flex-wrap gap-2">
+          {SUPPORTED_PROGRAMMING_LANGUAGES.map((lang) => {
+            const active = form.allowedLanguages.includes(lang);
+            return (
+              <button
+                key={lang}
+                type="button"
+                onClick={() => toggleLanguage(lang)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-colors ${
+                  active
+                    ? "bg-[#00A86B] text-white border-[#00A86B]"
+                    : "bg-white text-slate-500 border-slate-200 hover:border-[#00A86B] hover:text-[#00A86B]"
+                }`}
+              >
+                {lang}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className={labelCls}>Input Format</label>
+          <textarea value={form.inputFormat} onChange={set("inputFormat")} rows={2} className={`${inputCls} resize-y`} placeholder="Describe the input format" />
+        </div>
+        <div>
+          <label className={labelCls}>Output Format</label>
+          <textarea value={form.outputFormat} onChange={set("outputFormat")} rows={2} className={`${inputCls} resize-y`} placeholder="Describe the output format" />
+        </div>
+        <div>
+          <label className={labelCls}>Constraints</label>
+          <textarea value={form.constraints} onChange={set("constraints")} rows={2} className={`${inputCls} resize-y`} placeholder="e.g. 1 <= nums.length <= 10^4" />
+        </div>
+        <div>
+          <label className={labelCls}>Display Order</label>
+          <input type="number" value={form.displayOrder} onChange={set("displayOrder")} className={inputCls} />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className={labelCls}>Sample Input</label>
+          <textarea value={form.sampleInput} onChange={set("sampleInput")} rows={3} className={`${inputCls} resize-y font-mono`} placeholder="Sample input shown to students" />
+        </div>
+        <div>
+          <label className={labelCls}>Sample Output</label>
+          <textarea value={form.sampleOutput} onChange={set("sampleOutput")} rows={3} className={`${inputCls} resize-y font-mono`} placeholder="Expected output for the sample input" />
+        </div>
+      </div>
+
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <label className={labelCls}>Test Cases</label>
+          <button
+            type="button"
+            onClick={addTestCase}
+            className="text-xs font-semibold text-blue-600 hover:underline flex items-center gap-1"
+          >
+            <Plus className="w-3 h-3" /> Add Test Case
+          </button>
+        </div>
+        {form.testCases.length === 0 ? (
+          <p className="text-xs text-slate-400">No test cases yet. Add at least one to grade submissions.</p>
+        ) : (
+          <div className="space-y-3">
+            {form.testCases.map((tc, i) => (
+              <ProgrammingTestCaseEditor
+                key={tc._key}
+                testCase={tc}
+                index={i}
+                onChange={(patch) => setTestCase(i, patch)}
+                onRemove={() => removeTestCase(i)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={saving || !form.title.trim() || !form.problemStatement.trim()}
+          className="flex items-center gap-1.5 bg-[#00A86B] hover:bg-[#008f5a] text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <Save className="w-3.5 h-3.5" />
+          {saving ? "Saving..." : "Save Question"}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="text-slate-400 hover:text-slate-600 p-2"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminCourseContent() {
   const { courseId } = useParams();
   const navigate = useNavigate();
@@ -759,8 +1045,11 @@ export default function AdminCourseContent() {
   const [expandedModule, setExpandedModule] = useState(null);
   const [formState, setFormState] = useState(null);
   const [mockTestFormState, setMockTestFormState] = useState(null);
+  const [programmingQuestions, setProgrammingQuestions] = useState([]);
+  const [progFormState, setProgFormState] = useState(null);
   const [saving, setSaving] = useState(false);
   const [mockTestSaving, setMockTestSaving] = useState(false);
+  const [progSaving, setProgSaving] = useState(false);
   const [newModuleTitle, setNewModuleTitle] = useState("");
   const [showAddModule, setShowAddModule] = useState(false);
   const [movingModuleId, setMovingModuleId] = useState(null);
@@ -796,6 +1085,13 @@ export default function AdminCourseContent() {
       } catch (cmErr) {
         console.error("Failed to load course modules:", cmErr);
         setCourseModules([]);
+      }
+      try {
+        const pqRes = await getProgrammingQuestions(courseId);
+        setProgrammingQuestions(Array.isArray(pqRes.data) ? pqRes.data : []);
+      } catch (pqErr) {
+        console.error("Failed to load programming questions:", pqErr);
+        setProgrammingQuestions([]);
       }
     } catch (err) {
       console.error("Failed to load:", err);
@@ -1047,6 +1343,7 @@ export default function AdminCourseContent() {
     }
     const count = (lessonsByModule[mod.id] || []).length;
     setMockTestFormState(null);
+    setProgFormState(null);
     setFormState({
       moduleId: mod.id,
       lessonId: null,
@@ -1056,6 +1353,7 @@ export default function AdminCourseContent() {
 
   const openEditLesson = (mod, lesson) => {
     setMockTestFormState(null);
+    setProgFormState(null);
     setFormState({
       moduleId: mod.id,
       lessonId: lesson.id,
@@ -1151,6 +1449,7 @@ export default function AdminCourseContent() {
     }
     const count = (mockTestsByModule[mod.id] || []).length;
     setFormState(null);
+    setProgFormState(null);
     setMockTestFormState({
       moduleId: mod.id,
       testId: null,
@@ -1160,6 +1459,7 @@ export default function AdminCourseContent() {
 
   const openEditMockTest = (mod, test) => {
     setFormState(null);
+    setProgFormState(null);
     setMockTestFormState({
       moduleId: mod.id,
       testId: test.id,
@@ -1230,6 +1530,95 @@ export default function AdminCourseContent() {
     });
   };
 
+  const loadProgrammingQuestions = async () => {
+    try {
+      const { data } = await getProgrammingQuestions(courseId);
+      setProgrammingQuestions(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Failed to reload programming questions:", err);
+    }
+  };
+
+  const openAddProgrammingQuestion = () => {
+    setFormState(null);
+    setMockTestFormState(null);
+    setProgFormState({ questionId: null, initial: emptyProgrammingQuestion(programmingQuestions.length + 1) });
+  };
+
+  const openEditProgrammingQuestion = (q) => {
+    setFormState(null);
+    setMockTestFormState(null);
+    setProgFormState({
+      questionId: q.id,
+      initial: {
+        title: q.title || "",
+        problemStatement: q.problemStatement || "",
+        difficulty: q.difficulty || "MEDIUM",
+        allowedLanguages: Array.isArray(q.allowedLanguages) && q.allowedLanguages.length
+          ? [...q.allowedLanguages]
+          : [...SUPPORTED_PROGRAMMING_LANGUAGES],
+        inputFormat: q.inputFormat || "",
+        outputFormat: q.outputFormat || "",
+        constraints: q.constraints || "",
+        sampleInput: q.sampleInput || "",
+        sampleOutput: q.sampleOutput || "",
+        displayOrder: q.displayOrder || 1,
+        testCases: (q.testCases || []).map((tc, i) => ({
+          input: tc.input || "",
+          expectedOutput: tc.expectedOutput || "",
+          isPublic: tc.isPublic !== false,
+          displayOrder: tc.displayOrder || i + 1,
+          _key: `tc-${++__pqSeq}`,
+        })),
+      },
+    });
+  };
+
+  const handleSaveProgrammingQuestion = async (form) => {
+    if (!progFormState) return;
+    setProgSaving(true);
+    try {
+      if (progFormState.questionId) {
+        await updateProgrammingQuestion(progFormState.questionId, form);
+      } else {
+        await createProgrammingQuestion(courseId, form);
+      }
+      await loadProgrammingQuestions();
+      setProgFormState(null);
+      toast.success("Programming question saved successfully.");
+    } catch (err) {
+      console.error("Failed to save programming question:", err);
+      alert(err?.response?.data?.message || err?.message || "Failed to save programming question");
+    } finally {
+      setProgSaving(false);
+    }
+  };
+
+  const handleDeleteProgrammingQuestion = (q) => {
+    setDeleteModal({
+      type: "programming-question",
+      title: "Delete Programming Question",
+      entityName: q?.title || "Programming Question",
+      entityType: "programming question",
+      metaFields: [
+        { label: "Question ID", value: `${q?.id || ""}` },
+        { label: "Difficulty", value: q?.difficulty || "" },
+        { label: "Test Cases", value: (q?.testCases || []).length > 0 ? `${(q?.testCases || []).length}` : "" },
+      ],
+      description: "This programming question and all of its test cases will be permanently deleted. This action cannot be undone.",
+      onConfirm: async () => {
+        try {
+          await deleteProgrammingQuestion(q.id);
+          await loadProgrammingQuestions();
+          setDeleteModal(null);
+          toast.success(`Programming question "${q?.title || ""}" was deleted successfully.`);
+        } catch (err) {
+          throw new Error(mapDeleteError("programming question", err));
+        }
+      },
+    });
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -1266,6 +1655,13 @@ export default function AdminCourseContent() {
             >
               <BookOpen className="w-4 h-4" />
               Add Existing Course as Module
+            </button>
+            <button
+              onClick={openAddProgrammingQuestion}
+              className="flex items-center gap-2 bg-white hover:bg-slate-50 text-[#0B2545] border border-slate-200 font-semibold px-4 py-2 rounded-xl shadow-sm hover:shadow transition-all duration-200 text-sm"
+            >
+              <Code2 className="w-4 h-4" />
+              Programming Question
             </button>
             <button
               onClick={() => setShowAddModule(true)}
@@ -1378,6 +1774,75 @@ export default function AdminCourseContent() {
             </div>
           </div>
         )}
+
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden mb-6">
+          <div className="flex items-center justify-between p-4 border-b border-slate-100">
+            <div className="flex items-center gap-2">
+              <Code2 className="w-4 h-4 text-[#00A86B]" />
+              <h2 className="text-sm font-bold text-[#0B2545]">Programming Questions</h2>
+              <span className="text-xs text-slate-400">({programmingQuestions.length})</span>
+            </div>
+            {!progFormState && (
+              <button onClick={openAddProgrammingQuestion} className="text-xs font-semibold text-blue-600 hover:underline flex items-center gap-1">
+                <Plus className="w-3 h-3" /> Add Question
+              </button>
+            )}
+          </div>
+
+          {progFormState && (
+            <ProgrammingQuestionForm
+              initial={progFormState.initial}
+              onSave={handleSaveProgrammingQuestion}
+              onCancel={() => setProgFormState(null)}
+              saving={progSaving}
+            />
+          )}
+
+          {!progFormState && (
+            <div className="divide-y divide-slate-100">
+              {programmingQuestions.length === 0 && (
+                <p className="text-sm text-slate-400 text-center py-6">
+                  No programming questions yet. Click &quot;Programming Question&quot; above to add course-level coding problems.
+                </p>
+              )}
+              {[...programmingQuestions]
+                .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0))
+                .map((q) => {
+                  const dqCls = DIFFICULTY_STYLES[q.difficulty] || DIFFICULTY_STYLES.MEDIUM;
+                  return (
+                    <div key={q.id} className="flex items-center justify-between p-4 hover:bg-slate-50">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Code2 className="w-4 h-4 text-[#00A86B] flex-shrink-0" />
+                        <span className="text-xs text-slate-400 font-mono flex-shrink-0">
+                          PQ{q.displayOrder}
+                        </span>
+                        <span className="text-sm font-semibold text-[#0B2545] truncate">
+                          {q.title}
+                        </span>
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 ${dqCls}`}>
+                          {q.difficulty}
+                        </span>
+                        <span className="text-xs text-slate-400 flex-shrink-0">
+                          {(q.testCases || []).length} test case{(q.testCases || []).length === 1 ? "" : "s"}
+                        </span>
+                        <span className="text-xs text-slate-400 hidden sm:inline flex-shrink-0">
+                          {(q.allowedLanguages || []).join(", ")}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button onClick={() => openEditProgrammingQuestion(q)} className="text-xs font-semibold text-blue-600 hover:underline px-2 flex items-center gap-1">
+                          <Pencil className="w-3 h-3" /> Edit
+                        </button>
+                        <button onClick={() => handleDeleteProgrammingQuestion(q)} className="p-1 text-red-400 hover:text-red-600">
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+        </div>
 
         <div className="space-y-4">
           {modulesMovable.list
