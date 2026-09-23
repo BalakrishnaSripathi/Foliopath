@@ -1,18 +1,18 @@
 import React from "react";
 import logo from "../../assets/logo.png";
 
-export default function Logo({ variant = "default" }) {
+export default function Logo({ variant = "default", className = "" }) {
   if (variant === "white") {
     return (
-      <div className="flex items-center gap-2 cursor-pointer select-none"> 
+      <div className={`flex items-center gap-2 cursor-pointer select-none ${className}`}> 
           <img
             src={logo}
             alt="Foliopath 360 Logo"
             className="w-full h-full object-contain"
           />
-        <span className="text-xl font-bold tracking-tight text-white">
+        {/* <span className="text-xl font-bold tracking-tight text-white">
           Foliopath <span className="text-[#00A86B]">360</span>
-        </span>
+        </span> */}
       </div>
     );
   }
