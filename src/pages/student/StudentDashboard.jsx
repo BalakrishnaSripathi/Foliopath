@@ -31,6 +31,9 @@ import {
   ChevronDown,
   ChevronRight,
   Lock,
+  X,
+  Download,
+  BadgeCheck,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { getMyEnrollments, getEnrollment, enrollInCourse } from "../../api/enrollmentService";
@@ -482,6 +485,114 @@ function InlineMockTestResult({ mockTestId, result: initialResult, onBack }) {
 }
 
 /* ─────────────────────────────────────────────────────────────
+   CERTIFICATE ART & HELPERS
+   ───────────────────────────────────────────────────────────── */
+function CertificateArt({ course, studentName, large = false }) {
+  const grad = COURSE_GRADIENTS[(Number(course.courseId) || 0) % COURSE_GRADIENTS.length];
+  const issueDate = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  const issuedId = `FP-CERT-${String(course.courseId || 0).padStart(4, "0")}-${new Date().getFullYear()}`;
+
+  return (
+    <div className={`relative w-full ${large ? "aspect-[8/5]" : "aspect-[4/3]"} rounded-xl overflow-hidden bg-[#fbf8f1]`}>
+      <div className={`absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r ${grad.bg}`} />
+      <div className="absolute inset-2 border border-[#0B2545]/25 rounded-[10px] pointer-events-none" />
+      <div className="absolute inset-3 border border-[#0B2545]/10 rounded-[8px] pointer-events-none" />
+      <div className="relative h-full flex flex-col items-center justify-center text-center px-6 py-4">
+        <div className={`rounded-full flex items-center justify-center bg-gradient-to-br ${grad.bg} ${large ? "w-12 h-12" : "w-9 h-9"}`}>
+          <Award className={`text-white ${large ? "w-6 h-6" : "w-4 h-4"}`} />
+        </div>
+        <p className="mt-2 text-[9px] tracking-[0.35em] font-bold text-slate-500 uppercase">Foliopath 360</p>
+        <h3 className={`font-serif font-bold text-[#0B2545] leading-tight ${large ? "text-2xl mt-1" : "text-sm mt-0.5"}`}>Certificate of Completion</h3>
+        <p className={`text-slate-500 ${large ? "text-[11px] mt-2" : "text-[9px] mt-1.5"}`}>This certifies that</p>
+        <p className={`font-bold text-[#0B2545] italic ${large ? "text-2xl mt-1" : "text-sm mt-0.5"}`}>{studentName}</p>
+        <p className={`text-slate-500 ${large ? "text-[11px] mt-1.5" : "text-[9px] mt-1"}`}>has successfully completed the course</p>
+        <p className={`font-bold text-[#00A86B] leading-tight ${large ? "text-xl mt-1 px-6" : "text-xs mt-0.5 px-4"}`}>{course.title}</p>
+        <div className="flex items-center gap-1 mt-2 text-slate-400">
+          <Calendar size={9} />
+          <span className={`${large ? "text-[11px]" : "text-[9px]"}`}>{issueDate}</span>
+        </div>
+        <div className="hidden lg:flex items-center justify-between w-full mt-2 px-6">
+          <div className="text-center">
+            <p className="text-[9px] font-serif italic text-slate-600">Alex Morgan</p>
+            <div className="border-t border-slate-300 w-16 pt-0.5 text-[8px] uppercase text-slate-400">Instructor</div>
+          </div>
+          <div className={`rounded-full bg-gradient-to-br ${grad.bg} flex items-center justify-center ${large ? "w-10 h-10" : "w-8 h-8"}`}>
+            <BadgeCheck className={`text-white ${large ? "w-5 h-5" : "w-4 h-4"}`} />
+          </div>
+          <div className="text-center">
+            <p className="text-[9px] font-serif italic text-slate-600">Foliopath 360</p>
+            <div className="border-t border-slate-300 w-16 pt-0.5 text-[8px] uppercase text-slate-400">Director</div>
+          </div>
+        </div>
+        <p className={`hidden lg:block ${large ? "text-[9px]" : "text-[8px]"} text-slate-400 font-mono`}>{issuedId}</p>
+      </div>
+      <p className="absolute bottom-2 inset-x-0 text-center text-[8px] font-mono text-slate-400">{issuedId}</p>
+    </div>
+  );
+}
+
+const CERT_BAND_HEX = [
+  "linear-gradient(90deg, #0B2545, #13315c)",
+  "linear-gradient(90deg, #134e4a, #0f766e)",
+  "linear-gradient(90deg, #1e1b4b, #312e81)",
+  "linear-gradient(90deg, #450a0a, #7f1d1d)",
+  "linear-gradient(90deg, #422006, #78350f)",
+  "linear-gradient(90deg, #1c1917, #292524)",
+];
+
+function buildCertificateHtml({ studentName, course, issueDate, issuedId }) {
+  const band = CERT_BAND_HEX[(Number(course.courseId) || 0) % CERT_BAND_HEX.length];
+  const accent = COURSE_GRADIENTS[(Number(course.courseId) || 0) % COURSE_GRADIENTS.length].accent;
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Certificate of Completion</title>
+<style>
+  body { margin: 0; display: flex; align-items: center; justify-content: center; min-height: 100vh; background: #f1f5f9; font-family: 'Georgia', serif; }
+  .cert { width: 880px; aspect-ratio: 8 / 5; background: #fbf8f1; position: relative; border: 1px solid #e2e8f0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 48px 72px; }
+  .frame { position: absolute; inset: 16px; border: 1px solid #0B2545; opacity: .25; }
+  .frame2 { position: absolute; inset: 22px; border: 1px solid #0B2545; opacity: .1; }
+  .band { position: absolute; top: 0; left: 0; right: 0; height: 7px; background: ${band}; }
+  .brand { letter-spacing: .35em; font-size: 12px; color: #64748b; text-transform: uppercase; margin-top: 8px; }
+  h1 { font-size: 34px; color: #0B2545; margin: 6px 0 0; }
+  .label { color: #64748b; font-size: 13px; margin-top: 14px; }
+  .name { font-size: 30px; color: #0B2545; font-style: italic; margin: 6px 0 0; font-weight: 700; }
+  .course { font-size: 22px; color: #00A86B; font-weight: 700; margin: 8px 0 0; }
+  .date { font-size: 11px; color: #94a3b8; margin-top: 12px; }
+  .sig { display: flex; justify-content: space-between; align-items: center; width: 100%; margin-top: 28px; padding: 0 24px; font-family: 'Arial', sans-serif; }
+  .sig div { text-align: center; font-size: 10px; color: #94a3b8; text-transform: uppercase; }
+  .sig .name2 { text-transform: none; font-style: italic; color: #475569; font-size: 12px; margin-bottom: 2px; }
+  .sig .line { border-top: 1px solid #cbd5e1; width: 80px; padding-top: 6px; font-size: 9px; }
+  .seal { width: 52px; height: 52px; border-radius: 9999px; background: linear-gradient(135deg, #0B2545, #13315c); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 26px; }
+  .id { position: absolute; bottom: 12px; left: 0; right: 0; text-align: center; font-size: 9px; font-family: 'Courier New', monospace; color: #94a3b8; }
+</style>
+</head>
+<body>
+  <div class="cert">
+    <div class="band"></div>
+    <div class="frame"></div>
+    <div class="frame2"></div>
+    <div class="seal" style="background: linear-gradient(135deg, ${accent}, #13315c);">&#127942;</div>
+    <p class="brand">Foliopath 360</p>
+    <h1>Certificate of Completion</h1>
+    <p class="label">This certifies that</p>
+    <p class="name">${studentName}</p>
+    <p class="label">has successfully completed the course</p>
+    <p class="course">${course.title}</p>
+    <p class="date">${issueDate}</p>
+    <div class="sig">
+      <div><div class="name2">Alex Morgan</div><div class="line">Instructor</div></div>
+      <div class="seal">&#10004;</div>
+      <div><div class="name2">Foliopath 360</div><div class="line">Director</div></div>
+    </div>
+    <p class="id">${issuedId}</p>
+  </div>
+</body>
+</html>`;
+}
+
+/* ─────────────────────────────────────────────────────────────
    MAIN STUDENT DASHBOARD (content only — sidebar is in StudentShell)
    ───────────────────────────────────────────────────────────── */
 export default function StudentDashboard() {
@@ -509,6 +620,7 @@ export default function StudentDashboard() {
   const [inlineLesson, setInlineLesson] = useState(null);
   const [inlineMockTest, setInlineMockTest] = useState(null);
   const [inlineMockResult, setInlineMockResult] = useState(null);
+  const [viewingCertificate, setViewingCertificate] = useState(null);
 
   const [enrollingCourse, setEnrollingCourse] = useState(false);
   const [coursePaymentBusy, setCoursePaymentBusy] = useState(false);
@@ -906,6 +1018,7 @@ export default function StudentDashboard() {
   const isMyCourses = path.includes("/my-courses");
   const isInterviewKits = path.includes("/interview-kits");
   const isSettings = path.includes("/settings");
+  const isCertificates = path.includes("/certificates");
 
   
   /* ── Route-based: settings / profile ──────────────────────────── */
@@ -1420,7 +1533,7 @@ export default function StudentDashboard() {
   }
 
   /* ── DASHBOARD VIEW ───────────────────────────────────────── */
-  if (!isMyCourses && !isInterviewKits) {
+  if (!isMyCourses && !isInterviewKits && !isCertificates) {
     return (
       <div className="p-6 space-y-6">
         <div>
@@ -1660,6 +1773,142 @@ export default function StudentDashboard() {
           );
           })()}
         </div>
+      </div>
+    );
+  }
+
+  /* ── CERTIFICATES VIEW ────────────────────────────────────── */
+  if (isCertificates) {
+    const studentName = [user?.firstName, user?.lastName].filter(Boolean).join(" ") || "Student";
+    const unlockedCount = enrollments.filter((e) => e.enrollmentStatus === "COMPLETED").length;
+
+    const handleDownloadCertificate = (course) => {
+      const issueDate = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+      const issuedId = `FP-CERT-${String(course.courseId || 0).padStart(4, "0")}-${new Date().getFullYear()}`;
+      const win = window.open("", "_blank");
+      if (!win) {
+        toast.error("Please allow pop-ups to download your certificate");
+        return;
+      }
+      win.document.write(buildCertificateHtml({ studentName, course, issueDate, issuedId }));
+      win.document.close();
+      win.focus();
+      setTimeout(() => win.print(), 300);
+    };
+
+    return (
+      <div className="p-6 space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">Certificates</h1>
+          <p className="text-sm text-slate-500 mt-0.5">
+            {unlockedCount} of {enrollments.length} certificate{enrollments.length === 1 ? "" : "s"} unlocked — complete a course to unlock its certificate
+          </p>
+        </div>
+
+        {enrollments.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 text-center">
+            <Award className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+            <h2 className="text-lg font-bold text-[#0B2545] mb-2">No certificates yet</h2>
+            <p className="text-sm text-slate-500 mb-6 max-w-md mx-auto">Enroll in a course and complete it to earn a verified certificate of completion.</p>
+            <button onClick={() => navigate("/courses")} className="inline-flex items-center gap-2 bg-[#00A86B] hover:bg-[#008f5a] text-white font-semibold px-6 py-3 rounded-xl shadow-md hover:shadow-lg transition-all duration-200">Explore Courses</button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {enrollments.map((course) => {
+              const unlocked = course.enrollmentStatus === "COMPLETED";
+              const progress = course.progressPercentage || 0;
+              return (
+                <div key={course.courseId} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow flex flex-col">
+                  <div className="relative">
+                    {unlocked ? (
+                      <CertificateArt course={course} studentName={studentName} />
+                    ) : (
+                      <div className="relative">
+                        <div className="opacity-60 grayscale pointer-events-none select-none">
+                          <CertificateArt course={course} studentName={studentName} />
+                        </div>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-900/40 rounded-xl">
+                          <div className="w-12 h-12 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
+                            <Lock className="w-5 h-5 text-slate-700" />
+                          </div>
+                          <p className="text-xs font-bold text-white drop-shadow">Certificate Locked</p>
+                          <div className="flex items-center gap-2 bg-white/90 rounded-full px-3 py-1">
+                            <div className="w-20 bg-slate-200 rounded-full h-1.5 overflow-hidden">
+                              <div className="h-1.5 rounded-full bg-[#00A86B]" style={{ width: `${progress}%` }} />
+                            </div>
+                            <span className="text-[10px] font-semibold text-slate-700">{progress}%</span>
+                          </div>
+                          <p className="text-[10px] text-white/90 max-w-[200px] text-center">Complete 100% of this course to unlock your certificate</p>
+                        </div>
+                      </div>
+                    )}
+                    <span className={`absolute top-2.5 right-2.5 text-[10px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1 shadow ${unlocked ? "bg-white/95 text-[#00A86B]" : "bg-slate-800/80 text-white"}`}>
+                      {unlocked ? <BadgeCheck className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
+                      {unlocked ? "Unlocked" : "Locked"}
+                    </span>
+                  </div>
+                  <div className="p-4 flex-1 flex flex-col">
+                    <p className="text-sm font-bold text-slate-800 leading-snug line-clamp-2">{course.title}</p>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${unlocked ? "bg-green-50 text-green-600" : "bg-amber-50 text-amber-600"}`}>
+                        {course.enrollmentStatus?.replace("_", " ") || "ENROLLED"}
+                      </span>
+                      <span className="text-[10px] text-slate-400">{progress}%</span>
+                    </div>
+                    <div className="mt-3">
+                      {unlocked ? (
+                        <div className="flex gap-2">
+                          <button onClick={() => setViewingCertificate(course)} className="flex-1 px-3 py-2 bg-[#00A86B] hover:bg-[#008f5a] text-white text-xs font-bold rounded-xl transition-colors inline-flex items-center justify-center gap-1.5">
+                            <Award className="w-3.5 h-3.5" /> View Certificate
+                          </button>
+                          <button onClick={() => handleDownloadCertificate(course)} title="Download PDF" className="px-3 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-bold rounded-xl transition-colors inline-flex items-center justify-center">
+                            <Download className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button onClick={() => openCourseDetail(course.courseId)} className="w-full px-3 py-2 border border-slate-200 hover:border-[#00A86B] hover:text-[#00A86B] text-slate-600 text-xs font-bold rounded-xl transition-colors inline-flex items-center justify-center gap-1.5">
+                          <Play className="w-3.5 h-3.5" /> Complete Course to Unlock
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {viewingCertificate && (() => {
+          const course = viewingCertificate;
+          const issuedId = `FP-CERT-${String(course.courseId || 0).padStart(4, "0")}-${new Date().getFullYear()}`;
+          return (
+            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setViewingCertificate(null)}>
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+                  <div>
+                    <h2 className="font-bold text-[#0B2545]">Certificate of Completion</h2>
+                    <p className="text-xs text-slate-500">{course.title}</p>
+                  </div>
+                  <button onClick={() => setViewingCertificate(null)} className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 transition-colors">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="p-5">
+                  <CertificateArt course={course} studentName={studentName} large />
+                </div>
+                <div className="flex items-center justify-between gap-3 px-5 py-4 border-t border-slate-100">
+                  <p className="text-[10px] text-slate-400 font-mono">{issuedId}</p>
+                  <div className="flex gap-2">
+                    <button onClick={() => setViewingCertificate(null)} className="px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-bold rounded-xl transition-colors">Close</button>
+                    <button onClick={() => handleDownloadCertificate(course)} className="px-4 py-2 bg-[#00A86B] hover:bg-[#008f5a] text-white text-xs font-bold rounded-xl transition-colors inline-flex items-center gap-1.5">
+                      <Download className="w-3.5 h-3.5" /> Download
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </div>
     );
   }
