@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import {
   Home,
@@ -12,13 +12,17 @@ import {
   HelpCircle,
   LogOut,
   Menu,
+  Code2,
+  Lock,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+import { getProgrammingQuestionAccess } from "../../api/programmingQuestionService";
 
 const NAV_ITEMS = [
   { icon: Home, label: "Dashboard", path: "/StudentDashboard" },
   { icon: BookOpen, label: "My Courses", path: "/StudentDashboard/my-courses" },
   { icon: Briefcase, label: "Interview Kits", path: "/StudentDashboard/interview-kits" },
+  { icon: Code2, label: "Programming Questions", path: "/StudentDashboard/programming-questions" },
   { icon: BarChart3, label: "My Progress", path: "/StudentDashboard/progress" },
   { icon: Award, label: "Certificates", path: "/StudentDashboard/certificates" },
   { icon: CreditCard, label: "Payments", path: "/StudentDashboard/payments" },
@@ -30,6 +34,23 @@ export default function StudentShell() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  /* Programming questions unlock once the student is enrolled in at least one
+     course or interview kit. Drives the lock icon in the sidebar. */
+  const [pqAccess, setPqAccess] = useState({ hasAccess: true });
+
+  const loadAccess = useCallback(async () => {
+    try {
+      const { data } = await getProgrammingQuestionAccess();
+      setPqAccess({ hasAccess: !!data?.hasAccess });
+    } catch {
+      setPqAccess({ hasAccess: true });
+    }
+  }, []);
+
+  useEffect(() => {
+    loadAccess();
+  }, [loadAccess]);
 
   const firstName = user?.firstName || "Student";
 
@@ -51,25 +72,30 @@ export default function StudentShell() {
         </div>
 
         <nav className="flex-1 px-3 py-4 overflow-y-auto space-y-0.5">
-          {NAV_ITEMS.map(({ icon: Icon, label, path, badge }) => (
-            <NavLink
-              key={path}
-              to={path}
-              end={path === "/StudentDashboard"}
-              onClick={() => setSidebarOpen(false)}
-              className={({ isActive }) =>
-                `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-150 ${
-                  isActive ? "bg-[#00A86B] text-white font-medium" : "text-slate-400 hover:bg-white/5 hover:text-white"
-                }`
-              }
-            >
-              <Icon size={16} />
-              <span>{label}</span>
-              {badge > 0 && (
-                <span className="ml-auto bg-rose-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">{badge}</span>
-              )}
-            </NavLink>
-          ))}
+          {NAV_ITEMS.map(({ icon: Icon, label, path, badge }) => {
+            const locked = path === "/StudentDashboard/programming-questions" && !pqAccess.hasAccess;
+            return (
+              <NavLink
+                key={path}
+                to={path}
+                end={path === "/StudentDashboard"}
+                onClick={() => setSidebarOpen(false)}
+                title={locked ? "Enroll in a course or interview kit to unlock" : undefined}
+                className={({ isActive }) =>
+                  `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-150 ${
+                    isActive ? "bg-[#00A86B] text-white font-medium" : "text-slate-400 hover:bg-white/5 hover:text-white"
+                  }`
+                }
+              >
+                <Icon size={16} />
+                <span className="flex-1 truncate">{label}</span>
+                {locked && <Lock size={12} className="opacity-60 flex-shrink-0" />}
+                {badge > 0 && (
+                  <span className="ml-auto bg-rose-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">{badge}</span>
+                )}
+              </NavLink>
+            );
+          })}
         </nav>
 
         <div className="px-3 py-4 border-t border-white/10 space-y-0.5">

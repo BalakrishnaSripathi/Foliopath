@@ -29,14 +29,21 @@ const buildPayload = (data) => ({
   })),
 });
 
-export const getProgrammingQuestions = (courseId) =>
-  api.get(`/api/programming-questions/course/${courseId}`);
+export const getProgrammingQuestions = () =>
+  api.get("/api/programming-questions");
+
+/**
+ * Whether the signed-in user may open the programming question bank.
+ * Students need at least one course or interview kit enrollment; staff always pass.
+ */
+export const getProgrammingQuestionAccess = () =>
+  api.get("/api/programming-questions/student/access");
 
 export const getProgrammingQuestion = (questionId) =>
   api.get(`/api/programming-questions/${questionId}`);
 
-export const createProgrammingQuestion = (courseId, data) =>
-  api.post(`/api/programming-questions/course/${courseId}`, buildPayload(data));
+export const createProgrammingQuestion = (data) =>
+  api.post("/api/programming-questions", buildPayload(data));
 
 export const updateProgrammingQuestion = (questionId, data) =>
   api.put(`/api/programming-questions/${questionId}`, buildPayload(data));

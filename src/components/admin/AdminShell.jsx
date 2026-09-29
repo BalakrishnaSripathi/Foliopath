@@ -10,6 +10,7 @@ import {
   BarChart3,
   CreditCard,
   Briefcase,
+  Code2,
   Menu,
   Power,
 } from "lucide-react";
@@ -32,6 +33,12 @@ const NAV_GROUPS = [
       { id: "students", label: "All Students", icon: GraduationCap },
       { id: "courses", label: "All Courses", icon: BookOpen },
       { id: "interview", label: "Interview Kits", icon: Briefcase },
+      {
+        id: "programming",
+        label: "Programming Questions",
+        icon: Code2,
+        path: "/admin/programming-questions",
+      },
     ],
   },
   {
@@ -79,9 +86,12 @@ export default function AdminShell() {
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef(null);
 
+  const onProgramming = location.pathname === "/admin/programming-questions";
   const onDashboard = location.pathname === "/admin/dashboard" || location.pathname === "/super-admin/dashboard";
   const active = location.state?.active || "overview";
-  const activeLabel = NAV_GROUPS.flatMap((g) => g.items).find((i) => i.id === active)?.label ?? "Dashboard";
+  const activeLabel = onProgramming
+    ? "Programming Questions"
+    : (NAV_GROUPS.flatMap((g) => g.items).find((i) => i.id === active)?.label ?? "Dashboard");
 
   useEffect(() => {
     function handler(e) {
@@ -91,8 +101,10 @@ export default function AdminShell() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const handleNav = (id) => {
-    navigate("/admin/dashboard", { state: { active: id } });
+  const handleNav = (item) => {
+    // Items with their own `path` get a dedicated page; the rest are
+    // dashboard sections dispatched through router state.
+    navigate(item.path || "/admin/dashboard", { state: item.path ? null : { active: item.id } });
     setSidebarOpen(false);
   };
 
@@ -129,11 +141,11 @@ export default function AdminShell() {
               </div>
               <div className="flex flex-col gap-0.5">
                 {group.items.map((item) => {
-                  const isActive = onDashboard && active === item.id;
+                  const isActive = item.path ? location.pathname === item.path : onDashboard && active === item.id;
                   return (
                     <button
                       key={item.id}
-                      onClick={() => handleNav(item.id)}
+                      onClick={() => handleNav(item)}
                       className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-left w-full transition-all duration-150 ${
                         isActive
                           ? "bg-[#00A86B]/10 text-[#00A86B] border border-[#00A86B]/20"

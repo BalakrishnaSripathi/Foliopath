@@ -16,12 +16,14 @@ import StaffDashboard from "./pages/staff/StaffDashboard";
 import AdminCourseForm from "./pages/admin/AdminCourseForm";
 import AdminCourseContent from "./pages/admin/AdminCourseContent";
 import AdminMockTest from "./pages/admin/AdminMockTest";
+import AdminProgrammingQuestions from "./pages/admin/AdminProgrammingQuestions";
 import CourseCatalog from "./pages/student/CourseCatalog";
 import CourseDetail from "./pages/student/CourseDetail";
 import KitCatalog from "./pages/KitCatalog";
 import KitDetail from "./pages/KitDetail";
 import StudentShell from "./pages/student/StudentShell";
 import StudentDashboard from "./pages/student/StudentDashboard";
+import StudentProgrammingQuestions from "./pages/student/StudentProgrammingQuestions";
 import CartPage from "./pages/student/CartPage";
 
 function HomeRedirect() {
@@ -88,6 +90,16 @@ function App() {
             <Route path="courses/:courseId/content" element={<AdminCourseContent />} />
             <Route path="courses/:courseId/modules/:moduleId/mock-tests" element={<AdminMockTest />} />
           </Route>
+          <Route
+            path="/admin/programming-questions"
+            element={
+              <ProtectedRoute allowedRoles={["SUPER_ADMIN", "STAFF"]}>
+                <AdminShell />
+              </ProtectedRoute>
+            }
+          >
+            <Route index element={<AdminProgrammingQuestions />} />
+          </Route>
 
           {/* Staff */}
           <Route
@@ -135,11 +147,12 @@ function App() {
             <Route index element={<StudentDashboard />} />
             <Route path="my-courses" element={<StudentDashboard />} />
             <Route path="my-courses/:courseId" element={<StudentDashboard />} />
-            <Route path="my-courses/:courseId/programming/:questionId" element={<StudentDashboard />} />
             <Route path="lessons/:moduleId/:lessonId" element={<StudentDashboard />} />
             <Route path="mock-tests/:mockTestId" element={<StudentDashboard />} />
             <Route path="mock-tests/:mockTestId/result" element={<StudentDashboard />} />
             <Route path="interview-kits" element={<StudentDashboard />} />
+            <Route path="programming-questions" element={<StudentProgrammingQuestions />} />
+            <Route path="programming-questions/:questionId" element={<StudentProgrammingQuestions />} />
             <Route path="progress" element={<StudentDashboard />} />
             <Route path="certificates" element={<StudentDashboard />} />
             <Route path="payments" element={<StudentDashboard />} />
