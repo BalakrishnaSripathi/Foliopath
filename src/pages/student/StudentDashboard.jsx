@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, useLocation, useParams } from "react-router-dom";
 import {
   Home,
@@ -36,7 +36,7 @@ import {
   BadgeCheck,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { getMyEnrollments, getEnrollment, enrollInCourse } from "../../api/enrollmentService";
+import { getMyEnrollments, getEnrollment, enrollInCourse, getCourseModuleProgress } from "../../api/enrollmentService";
 import {
   getPublishedCourses,
   getCourseById,
@@ -608,6 +608,11 @@ export default function StudentDashboard() {
   const [expandedModule, setExpandedModule] = useState(null);
   const [courseEnrollment, setCourseEnrollment] = useState(null);
 
+  // Authoritative per-module sequence from the backend. Progress is derived
+  // from passed mock tests only - never from opening or viewing a module.
+  const [moduleProgress, setModuleProgress] = useState([]);
+  const [progressSummary, setProgressSummary] = useState(null);
+
   const [inlineLesson, setInlineLesson] = useState(null);
   const [inlineMockTest, setInlineMockTest] = useState(null);
   const [inlineMockResult, setInlineMockResult] = useState(null);
@@ -656,6 +661,24 @@ export default function StudentDashboard() {
     }
   };
 
+  /**
+   * Sequential module statuses for the enrolled course. Called on load and
+   * again after every mock test submission, because grading a test is what
+   * completes a module and unlocks the next one.
+   */
+  const loadModuleProgress = useCallback(async (courseId) => {
+    try {
+      const { data } = await getCourseModuleProgress(courseId);
+      setModuleProgress(Array.isArray(data?.modules) ? data.modules : []);
+      setProgressSummary(data ?? null);
+    } catch {
+      // Non-enrolled students get 404/403 here; leaving the list empty makes
+      // isModuleLocked fall back to the plain "enrolled" rule.
+      setModuleProgress([]);
+      setProgressSummary(null);
+    }
+  }, []);
+
   const loadCourseDetail = useCallback(async (courseId) => {
     setCourseLoading(true);
     setCourseLoadFailed(false);
@@ -667,6 +690,8 @@ export default function StudentDashboard() {
     setMockTestsByModule({});
     setExpandedModule(null);
     setCourseEnrollment(null);
+    setModuleProgress([]);
+    setProgressSummary(null);
     try {
       const [courseRes, modulesRes] = await Promise.all([getCourseById(courseId), getModules(courseId)]);
       setCourseDetail(courseRes.data);
@@ -674,6 +699,7 @@ export default function StudentDashboard() {
       setCourseModules(mods);
       try { const cmRes = await getCourseModules(courseId); setCourseLinks(cmRes.data || []); } catch { setCourseLinks([]); }
       try { const { data } = await getEnrollment(courseId); setCourseEnrollment(data); } catch { setCourseEnrollment(null); }
+      loadModuleProgress(courseId);
       const results = await Promise.all(
         mods.map((m) =>
           Promise.all([
@@ -691,7 +717,25 @@ export default function StudentDashboard() {
     } finally {
       setCourseLoading(false);
     }
-  }, []);
+  }, [loadModuleProgress]);
+
+  const moduleStatusById = useMemo(
+    () => Object.fromEntries(moduleProgress.map((m) => [m.moduleId, m.status])),
+    [moduleProgress]
+  );
+
+  const progressLoaded = moduleProgress.length > 0;
+
+  /**
+   * A module is locked unless the backend says it is reachable. The
+   * backend is the only authority - this never derives OPEN from an open
+   * accordion, and never counts a view as progress.
+   */
+  const isModuleLocked = (moduleId) => {
+    if (!isEnrolled) return true;
+    if (!progressLoaded) return false;
+    return moduleStatusById[moduleId] === "LOCKED";
+  };
 
   useEffect(() => {
     if (routeCourseId) {
@@ -885,6 +929,9 @@ export default function StudentDashboard() {
       setInlineLesson(null);
       setInlineMockTest(null);
       setInlineMockResult({ mockTestId: id, result: resultData });
+      // Grading the test is what completed the module and unlocked the next
+      // one, so pull the authoritative sequence back from the server.
+      if (routeCourseId) loadModuleProgress(routeCourseId);
     }
   };
 
@@ -897,17 +944,37 @@ export default function StudentDashboard() {
     );
   };
 
+  /** Why a module cannot be opened yet: pass the previous module's test. */
+  const promptLockedModule = (moduleId) => {
+    const ordered = [...courseModules].sort(
+      (a, b) => (a.displayOrder || 0) - (b.displayOrder || 0)
+    );
+    const index = ordered.findIndex((m) => m.id === moduleId);
+    const previous = index > 0 ? ordered[index - 1] : null;
+    return previous
+      ? `Pass the mock test for Module ${previous.displayOrder} — ${previous.title} to unlock this module`
+      : "This module is locked";
+  };
+
   const handleViewLessonFromCurriculum = (moduleId, lessonId) => {
     if (!isEnrolled) {
       promptEnroll();
       return;
     }
+    if (isModuleLocked(moduleId)) {
+      toast.error(promptLockedModule(moduleId));
+      return;
+    }
     handleInlineNav("lesson", { moduleId, lessonId });
   };
 
-  const handleViewMockTestFromCurriculum = (testId) => {
+  const handleViewMockTestFromCurriculum = (testId, moduleId) => {
     if (!isEnrolled) {
       promptEnroll();
+      return;
+    }
+    if (moduleId && isModuleLocked(moduleId)) {
+      toast.error(promptLockedModule(moduleId));
       return;
     }
     handleInlineNav("test", testId);
@@ -1273,7 +1340,30 @@ export default function StudentDashboard() {
             <div className="bg-white rounded-2xl border border-slate-100 p-6">
               <h2 className="text-lg font-bold text-[#0B2545] mb-4">Curriculum</h2>
               {isEnrolled ? (
-                <p className="text-xs text-[#00A86B] font-semibold mb-4">All modules unlocked — start learning!</p>
+                progressSummary ? (
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between text-xs font-semibold mb-2">
+                      <span className="text-slate-500">
+                        {progressSummary.completedModules} of {progressSummary.totalModules} modules completed
+                        {progressSummary.currentModule
+                          ? ` · on Module ${progressSummary.currentModule}`
+                          : " · course complete"}
+                      </span>
+                      <span className="text-[#00A86B]">{progressSummary.progressPercentage}%</span>
+                    </div>
+                    <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-[#00A86B] transition-all"
+                        style={{ width: `${progressSummary.progressPercentage || 0}%` }}
+                      />
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-2">
+                      Complete a module&apos;s mock test to unlock the next one.
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-[#00A86B] font-semibold mb-4">Enrolled — start learning!</p>
+                )
               ) : (
                 <p className="text-xs text-slate-500 font-semibold mb-4">
                   All content is locked — <span className="text-[#00A86B]">enroll to unlock lessons & mock tests</span>
@@ -1284,9 +1374,12 @@ export default function StudentDashboard() {
                   const lessons = lessonsByModule[mod.id] || [];
                   const tests = mockTestsByModule[mod.id] || [];
                   const isExpanded = expandedModule === mod.id;
-                  const locked = !isEnrolled;
+                  // Status comes from the backend, derived from passed mock
+                  // tests. Opening this accordion changes nothing.
+                  const locked = isModuleLocked(mod.id);
+                  const status = isEnrolled && progressLoaded ? moduleStatusById[mod.id] : null;
                   return (
-                    <div key={mod.id} className="border border-slate-100 rounded-xl overflow-hidden">
+                    <div key={mod.id} className={`border rounded-xl overflow-hidden ${locked ? "border-slate-100" : status === "COMPLETED" ? "border-[#00A86B]/40" : "border-slate-100"}`}>
                       <button
                         onClick={() => setExpandedModule(isExpanded ? null : mod.id)}
                         className="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-colors text-left"
@@ -1294,12 +1387,24 @@ export default function StudentDashboard() {
                         <div className="flex items-center gap-3 min-w-0">
                           {locked ? (
                             <Lock className="w-4 h-4 text-slate-300 flex-shrink-0" />
+                          ) : status === "COMPLETED" ? (
+                            <CheckCircle2 className="w-5 h-5 text-[#00A86B] flex-shrink-0" />
                           ) : isExpanded ? (
                             <ChevronDown className="w-5 h-5 text-slate-400 flex-shrink-0" />
                           ) : (
                             <ChevronRight className="w-5 h-5 text-slate-400 flex-shrink-0" />
                           )}
                           <span className={`font-semibold text-sm truncate ${locked ? "text-slate-400" : "text-[#0B2545]"}`}>Module {mod.displayOrder}: {mod.title}</span>
+                          {status === "OPEN" && (
+                            <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 flex-shrink-0">
+                              In progress
+                            </span>
+                          )}
+                          {status === "COMPLETED" && (
+                            <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-[#00A86B]/10 text-[#008f5a] flex-shrink-0">
+                              Completed
+                            </span>
+                          )}
                         </div>
                         <span className="text-xs text-slate-400 flex-shrink-0 ml-3">
                           {locked
@@ -1335,7 +1440,7 @@ export default function StudentDashboard() {
                                 Mock Tests
                               </p>
                               {[...tests].sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0)).map((test) => (
-                                <button key={test.id} onClick={() => handleViewMockTestFromCurriculum(test.id)} className={`w-full flex items-center gap-3 px-6 py-3 transition-colors text-left border-b border-slate-100 last:border-0 ${locked ? "hover:bg-slate-100 cursor-not-allowed" : "hover:bg-slate-100"}`}>
+                                <button key={test.id} onClick={() => handleViewMockTestFromCurriculum(test.id, mod.id)} className={`w-full flex items-center gap-3 px-6 py-3 transition-colors text-left border-b border-slate-100 last:border-0 ${locked ? "hover:bg-slate-100 cursor-not-allowed" : "hover:bg-slate-100"}`}>
                                   {locked ? (
                                     <Lock className="w-4 h-4 text-slate-300 flex-shrink-0" />
                                   ) : (
