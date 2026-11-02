@@ -1,0 +1,16 @@
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
+import StudentDashboardHome from './StudentDashboardNew';
+import { getMyEnrollments, getEnrollment, enrollInCourse, getCourseModuleProgress } from '../../api/enrollmentService';
+import { getPublishedCourses, getCourseById, getModules, getLessons, getLesson, getCourseModules } from '../../api/courseService';
+import { addToCart } from '../../api/cartService';
+import { checkoutCart } from '../../api/orderService';
+import { payOrder } from '../../api/paymentService';
+import { getMockTests, getMockTest, submitMockTestAttempt, getMyMockTestAttempt } from '../../api/mockTestService';
+import { getMyEnrolledKits, getPublishedKits, getKitById, enrollInKit } from '../../api/interviewKitService';
+import RenderAnswer from '../../components/admin/RenderAnswer';
+import StudentProfile from './StudentProfile';
+import { useAuth } from '../../context/AuthContext';
+import CodePlayground from '../../components/CodePlayground';
+import { isExecutableLanguage } from '../../api/codeExecutionService';
+import { enrichCourse } from '../../lib/staticCatalog';

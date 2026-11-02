@@ -32,8 +32,17 @@ const NAV_ITEMS = [
 
 export default function StudentShell() {
   const { user, logout } = useAuth();
+   const greet = getGreeting();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const dashboardFirstName = user?.firstName || (user?.name ? user.name.split(" ")[0] : "Student");
+
+  function getGreeting() {
+  const h = new Date().getHours();
+  if (h < 12) return "Good Morning";
+  if (h < 17) return "Good Afternoon";
+  return "Good Evening";
+}
 
   /* Programming questions unlock once the student is enrolled in at least one
      course or interview kit. Drives the lock icon in the sidebar. */
@@ -109,10 +118,14 @@ export default function StudentShell() {
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="h-14 shrink-0 bg-white border-b border-slate-200 flex items-center justify-between px-6">
+        <header className="h-14 shrink-0 bg-white border-b border-slate-200 flex items-center justify-between px-4 sm:px-6">
           <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-slate-500 hover:text-slate-700 transition-colors">
             <Menu size={20} />
           </button>
+          <div>
+              <h1 className="text-base sm:text-lg lg:text-xl font-bold">{greet}, {dashboardFirstName}!</h1>
+               <p className="mt-0.5 text-[10px] sm:text-[11px]">Continue your learning journey and achieve your goals.</p>
+              </div>
           <div className="flex-1" />
           <div className="flex items-center gap-4">
             <button className="relative w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-colors">
@@ -127,6 +140,8 @@ export default function StudentShell() {
             </div>
           </div>
         </header>
+
+
 
         <div className="flex-1 overflow-y-auto">
           <Outlet />

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate, useLocation, useParams } from "react-router-dom";
 import {
   Home,
@@ -22,21 +22,26 @@ import {
   TrendingUp,
   Target,
   ArrowLeft,
+  ArrowRight,
   Globe,
   ClipboardList,
   Search,
   Code,
+  Code2,
   FileText,
   NotebookPen,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   Lock,
   X,
   Download,
   BadgeCheck,
+  Activity,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { getMyEnrollments, getEnrollment, enrollInCourse, getCourseModuleProgress } from "../../api/enrollmentService";
+import { getMyLearningActivity } from "../../api/studentService";
 import {
   getPublishedCourses,
   getCourseById,
@@ -126,9 +131,9 @@ function renderContentBlock(block, index) {
   return null;
 }
 
-/* ─────────────────────────────────────────────────────────────
+/* -------------------------------------------------------------
    INLINE LESSON VIEW
-   ───────────────────────────────────────────────────────────── */
+   ------------------------------------------------------------- */
 function InlineLessonView({ moduleId, lessonId, onBack }) {
   const [lesson, setLesson] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -228,9 +233,9 @@ function InlineLessonView({ moduleId, lessonId, onBack }) {
   );
 }
 
-/* ─────────────────────────────────────────────────────────────
+/* -------------------------------------------------------------
    INLINE MOCK TEST VIEW
-   ───────────────────────────────────────────────────────────── */
+   ------------------------------------------------------------- */
 function InlineMockTestView({ mockTestId, onBack }) {
   const [test, setTest] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -319,9 +324,9 @@ function InlineMockTestView({ mockTestId, onBack }) {
   );
 }
 
-/* ─────────────────────────────────────────────────────────────
+/* -------------------------------------------------------------
    INLINE MOCK TEST RESULT
-   ───────────────────────────────────────────────────────────── */
+   ------------------------------------------------------------- */
 function InlineMockTestResult({ mockTestId, result: initialResult, onBack }) {
   const [result, setResult] = useState(initialResult);
   const [test, setTest] = useState(null);
@@ -373,7 +378,7 @@ function InlineMockTestResult({ mockTestId, result: initialResult, onBack }) {
           <span className={`text-sm font-medium ${passed ? "text-emerald-200" : "text-slate-400"}`}>score</span>
         </div>
         <p className={`mt-2 text-sm font-semibold ${passed ? "text-emerald-100" : "text-slate-400"}`}>
-          {passed ? "Congratulations! You passed!" : "Keep practicing — you'll get there!"}
+          {passed ? "Congratulations! You passed!" : "Keep practicing � you'll get there!"}
         </p>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -476,9 +481,9 @@ function InlineMockTestResult({ mockTestId, result: initialResult, onBack }) {
   );
 }
 
-/* ─────────────────────────────────────────────────────────────
+/* -------------------------------------------------------------
    CERTIFICATE ART & HELPERS
-   ───────────────────────────────────────────────────────────── */
+   ------------------------------------------------------------- */
 function CertificateArt({ course, studentName, large = false }) {
   const grad = COURSE_GRADIENTS[(Number(course.courseId) || 0) % COURSE_GRADIENTS.length];
   const issueDate = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
@@ -584,9 +589,168 @@ function buildCertificateHtml({ studentName, course, issueDate, issuedId }) {
 </html>`;
 }
 
-/* ─────────────────────────────────────────────────────────────
-   MAIN STUDENT DASHBOARD (content only — sidebar is in StudentShell)
-   ───────────────────────────────────────────────────────────── */
+function RecentlyAddedCoursesCarousel({ courses, onOpenCourse, onViewAll, gradSet }) {
+  const scrollRef = useRef(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const updateScrollState = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const maxScroll = el.scrollWidth - el.clientWidth;
+    setCanScrollLeft(el.scrollLeft > 2);
+    setCanScrollRight(maxScroll > 2 && el.scrollLeft < maxScroll - 2);
+  }, []);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return undefined;
+    updateScrollState();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updateScrollState);
+    observer?.observe(el);
+    window.addEventListener("resize", updateScrollState);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", updateScrollState);
+    };
+  }, [updateScrollState, courses.length]);
+
+  const scrollByCard = (direction) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const card = el.firstElementChild;
+    const cardWidth = card?.getBoundingClientRect().width || el.clientWidth * 0.8;
+    const gap = parseFloat(getComputedStyle(el).columnGap) || 12;
+    el.scrollBy({ left: direction * (cardWidth + gap), behavior: "smooth" });
+  };
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+      <div className="p-4 sm:p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+          <div className="min-w-0">
+            <h2 className="text-lg font-bold text-[#0B2545]">Recently Added Courses</h2>
+            <p className="text-xs sm:text-sm text-slate-500 mt-0.5">Explore new courses and expand your skills.</p>
+          </div>
+          <button type="button" onClick={onViewAll} className="inline-flex items-center gap-1 text-sm text-[#00A86B] font-medium hover:underline shrink-0">View All <ArrowRight size={14} /></button>
+        </div>
+
+        {courses.length === 0 ? (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-5 text-center sm:text-left">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-white border border-slate-100 flex items-center justify-center shrink-0"><BookOpen size={18} className="text-slate-400" /></div>
+              <div>
+                <p className="text-sm font-semibold text-[#0B2545]">No new courses available</p>
+                <p className="text-xs text-slate-500 mt-0.5">Check back soon or browse the full course catalog.</p>
+              </div>
+            </div>
+            <button type="button" onClick={onViewAll} className="inline-flex items-center gap-1.5 bg-[#00A86B] hover:bg-[#008f5a] text-white text-xs font-semibold px-3.5 py-2 rounded-xl transition-colors shrink-0">Browse Courses <ArrowRight size={14} /></button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => scrollByCard(-1)}
+              disabled={!canScrollLeft}
+              aria-label="Scroll to previous recently added courses"
+              className={`hidden sm:flex w-8 h-8 rounded-full border items-center justify-center shrink-0 transition-all ${canScrollLeft ? "bg-white border-slate-200 text-slate-600 shadow-sm hover:text-[#00A86B] hover:border-[#00A86B]/40" : "bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed"}`}
+            >
+              <ChevronLeft size={17} />
+            </button>
+
+            <div
+              ref={scrollRef}
+              onScroll={updateScrollState}
+              className="flex-1 min-w-0 flex gap-3 overflow-x-auto scroll-smooth pb-1 [&::-webkit-scrollbar]:hidden"
+              style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+            >
+              {courses.map((course, i) => {
+                const grad = gradSet[i % gradSet.length];
+                const moduleCount = course.modules?.length ?? course.moduleCount ?? course.modulesCount;
+                const hasModuleCount = Number.isFinite(Number(moduleCount)) && Number(moduleCount) > 0;
+                const meta = [course.language || "English", hasModuleCount ? `${moduleCount} module${Number(moduleCount) === 1 ? "" : "s"}` : null].filter(Boolean);
+                const thumbnail = course.thumbnailUrl;
+                const useContain = !!thumbnail && (/\.svg(\?|#|$)/i.test(thumbnail) || /logo/i.test(thumbnail));
+                return (
+                  
+<button
+  type="button"
+  key={course.id}
+  onClick={() => onOpenCourse(course.id)}
+  className="group w-[85%] min-[480px]:w-[calc((100%-12px)/2)] min-[768px]:w-[calc((100%-24px)/3)] min-[1200px]:w-[calc((100%-32px)/3)] shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-white text-left shadow-sm transition-all duration-200 hover:border-[#00A86B]/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00A86B]/40"
+>
+  {/* Course banner */}
+  <div className="relative aspect-[16/7] overflow-hidden bg-slate-100">
+    {thumbnail ? (
+      <img
+        src={thumbnail}
+        alt={`${course.title || "Course"} banner`}
+        loading="lazy"
+        className={`h-full w-full transition-transform duration-300 group-hover:scale-[1.03] ${
+          useContain ? "object-contain p-3" : "object-cover"
+        }`}
+      />
+    ) : (
+      <div
+        className={`flex h-full w-full items-center justify-center bg-gradient-to-br ${grad.bg}`}
+      >
+        <span
+          className="text-2xl font-bold"
+          style={{ color: grad.accent }}
+        >
+          {(course.title || "C").charAt(0)}
+        </span>
+      </div>
+    )}
+
+    <span className="absolute right-2 top-2 rounded-full bg-[#00A86B] px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
+      NEW
+    </span>
+  </div>
+
+  {/* Course details */}
+  <div className="flex min-h-[84px] flex-col p-3">
+    <p className="line-clamp-2 min-h-[2rem] text-xs font-semibold leading-4 text-[#0B2545] transition-colors group-hover:text-[#00A86B] sm:text-[13px]">
+      {course.title}
+    </p>
+
+    <p className="mt-1 truncate text-[10px] text-slate-500 sm:text-[11px]">
+      {meta.join(" · ")}
+    </p>
+
+    <span className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-[#00A86B]">
+      Explore
+      <ArrowRight
+        size={12}
+        className="transition-transform duration-200 group-hover:translate-x-0.5"
+      />
+    </span>
+  </div>
+</button>
+
+                );
+              })}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => scrollByCard(1)}
+              disabled={!canScrollRight}
+              aria-label="Scroll to next recently added courses"
+              className={`hidden sm:flex w-8 h-8 rounded-full border items-center justify-center shrink-0 transition-all ${canScrollRight ? "bg-white border-slate-200 text-slate-600 shadow-sm hover:text-[#00A86B] hover:border-[#00A86B]/40" : "bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed"}`}
+            >
+              <ChevronRight size={17} />
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------
+   MAIN STUDENT DASHBOARD (content only � sidebar is in StudentShell)
+   ------------------------------------------------------------- */
 export default function StudentDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -622,6 +786,17 @@ export default function StudentDashboard() {
   const [coursePaymentBusy, setCoursePaymentBusy] = useState(false);
   const [coursePaymentError, setCoursePaymentError] = useState(null);
 
+  const refreshLearningActivity = useCallback(async () => {
+    const token = localStorage.getItem("accessToken");
+    if (!token) return;
+    try {
+      const { data } = await getMyLearningActivity(20);
+      setLearningActivity(Array.isArray(data) ? data : []);
+    } catch {
+      // ignore
+    }
+  }, []);
+
   const [myCoursesFilter, setMyCoursesFilter] = useState("ALL");
   const [courseSearch, setCourseSearch] = useState("");
 
@@ -637,7 +812,36 @@ export default function StudentDashboard() {
   const [kitPaymentBusy, setKitPaymentBusy] = useState(null);
   const [kitPaymentError, setKitPaymentError] = useState(null);
 
+  const [learningActivity, setLearningActivity] = useState([]);
+  const [learningActivityFilter, setLearningActivityFilter] = useState("ALL");
+  const [learningActivityLoading, setLearningActivityLoading] = useState(false);
+
   useEffect(() => { loadData(); }, []);
+
+  useEffect(() => {
+    const fetchActivity = async () => {
+      const token = localStorage.getItem("accessToken");
+      if (!token) return;
+      setLearningActivityLoading(true);
+      try {
+        const { data } = await getMyLearningActivity(20);
+        setLearningActivity(Array.isArray(data) ? data : []);
+      } catch (err) {
+        if (err.response?.status === 401) {
+          setLearningActivity([]);
+          return;
+        }
+        console.error("Failed to load learning activity:", err);
+        setLearningActivity([]);
+      } finally {
+        setLearningActivityLoading(false);
+      }
+    };
+    fetchActivity();
+    const onFocus = () => fetchActivity();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, []);
 
   const loadData = async () => {
     try {
@@ -932,6 +1136,7 @@ export default function StudentDashboard() {
       // Grading the test is what completed the module and unlocked the next
       // one, so pull the authoritative sequence back from the server.
       if (routeCourseId) loadModuleProgress(routeCourseId);
+      refreshLearningActivity();
     }
   };
 
@@ -952,7 +1157,7 @@ export default function StudentDashboard() {
     const index = ordered.findIndex((m) => m.id === moduleId);
     const previous = index > 0 ? ordered[index - 1] : null;
     return previous
-      ? `Pass the mock test for Module ${previous.displayOrder} — ${previous.title} to unlock this module`
+      ? `Pass the mock test for Module ${previous.displayOrder} � ${previous.title} to unlock this module`
       : "This module is locked";
   };
 
@@ -965,6 +1170,7 @@ export default function StudentDashboard() {
       toast.error(promptLockedModule(moduleId));
       return;
     }
+    refreshLearningActivity();
     handleInlineNav("lesson", { moduleId, lessonId });
   };
 
@@ -977,6 +1183,7 @@ export default function StudentDashboard() {
       toast.error(promptLockedModule(moduleId));
       return;
     }
+    refreshLearningActivity();
     handleInlineNav("test", testId);
   };
 
@@ -1062,12 +1269,12 @@ export default function StudentDashboard() {
   const isCertificates = path.includes("/certificates");
 
   
-  /* ── Route-based: settings / profile ──────────────────────────── */
+  /* -- Route-based: settings / profile ---------------------------- */
   if (isSettings) {
     return <StudentProfile embedded />;
   }
 
-  /* ── Route-based: interview kit detail ──────────────────────── */
+  /* -- Route-based: interview kit detail ------------------------ */
   if (selectedKit) {
     return (
       <div className="p-6 space-y-6">
@@ -1091,7 +1298,7 @@ export default function StudentDashboard() {
                   <div className="mt-4">
                     {enrolledKitIds.has(kitDetail.id) ? (
                       <span className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-white/15 text-amber-100 border border-amber-300/40">
-                        <CheckCircle2 className="w-4 h-4" /> Enrolled — questions unlocked
+                        <CheckCircle2 className="w-4 h-4" /> Enrolled � questions unlocked
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-white/10 text-slate-200 border border-white/20">
@@ -1111,7 +1318,7 @@ export default function StudentDashboard() {
                 <div className="bg-white rounded-2xl border border-slate-100 p-6">
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="text-lg font-bold text-[#0B2545]">Modules</h2>
-                    <span className="text-xs text-slate-400">{kitModules.length} module{kitModules.length !== 1 ? "s" : ""} · {totalQuestions} questions</span>
+                    <span className="text-xs text-slate-400">{kitModules.length} module{kitModules.length !== 1 ? "s" : ""} � {totalQuestions} questions</span>
                   </div>
 
                   {!isEnrolled && (
@@ -1227,7 +1434,7 @@ export default function StudentDashboard() {
     );
   }
 
-  /* ── Route-based: lesson view ──────────────────────────────── */
+  /* -- Route-based: lesson view -------------------------------- */
   if (moduleId && lessonId) {
     return (
       <div className="p-6">
@@ -1236,7 +1443,7 @@ export default function StudentDashboard() {
     );
   }
 
-  /* ── Route-based: mock test result ─────────────────────────── */
+  /* -- Route-based: mock test result --------------------------- */
   const isMockTestResult = /\/mock-tests\/.+\/result$/.test(path);
   if (isMockTestResult && mockTestId) {
     return (
@@ -1246,7 +1453,7 @@ export default function StudentDashboard() {
     );
   }
 
-  /* ── Route-based: mock test ────────────────────────────────── */
+  /* -- Route-based: mock test ---------------------------------- */
   const isMockTestView = /\/mock-tests\/[^/]+$/.test(path) && !isMockTestResult;
   if (isMockTestView && mockTestId) {
     return (
@@ -1256,7 +1463,7 @@ export default function StudentDashboard() {
     );
   }
 
-  /* ── State-based: inline lesson/mock test (from course detail) ── */
+  /* -- State-based: inline lesson/mock test (from course detail) -- */
   if (inlineLesson) {
     return (
       <div className="p-6">
@@ -1279,7 +1486,7 @@ export default function StudentDashboard() {
     );
   }
 
-  /* ── Course Detail (URL-driven via /StudentDashboard/my-courses/:courseId) ─── */
+  /* -- Course Detail (URL-driven via /StudentDashboard/my-courses/:courseId) --- */
   if (routeCourseId) {
     return (
       <div className="p-6 space-y-6">
@@ -1307,9 +1514,9 @@ export default function StudentDashboard() {
                   {!isEnrolled && (
                     <div className="bg-white rounded-2xl p-5 text-[#0B2545] shadow-xl lg:w-64 shrink-0">
                       <div className="flex items-baseline gap-2 mb-1">
-                        <span className="text-3xl font-black">₹{courseDetail.price || 0}</span>
+                        <span className="text-3xl font-black">?{courseDetail.price || 0}</span>
                         {(courseDetail.price || 0) > 0 && (
-                          <span className="text-sm text-slate-400 line-through">₹{courseDetail.originalPrice || Math.round((courseDetail.price || 0) * 2)}</span>
+                          <span className="text-sm text-slate-400 line-through">?{courseDetail.originalPrice || Math.round((courseDetail.price || 0) * 2)}</span>
                         )}
                       </div>
                       {(courseDetail.price || 0) > 0 && (
@@ -1346,8 +1553,8 @@ export default function StudentDashboard() {
                       <span className="text-slate-500">
                         {progressSummary.completedModules} of {progressSummary.totalModules} modules completed
                         {progressSummary.currentModule
-                          ? ` · on Module ${progressSummary.currentModule}`
-                          : " · course complete"}
+                          ? ` � on Module ${progressSummary.currentModule}`
+                          : " � course complete"}
                       </span>
                       <span className="text-[#00A86B]">{progressSummary.progressPercentage}%</span>
                     </div>
@@ -1362,11 +1569,11 @@ export default function StudentDashboard() {
                     </p>
                   </div>
                 ) : (
-                  <p className="text-xs text-[#00A86B] font-semibold mb-4">Enrolled — start learning!</p>
+                  <p className="text-xs text-[#00A86B] font-semibold mb-4">Enrolled � start learning!</p>
                 )
               ) : (
                 <p className="text-xs text-slate-500 font-semibold mb-4">
-                  All content is locked — <span className="text-[#00A86B]">enroll to unlock lessons & mock tests</span>
+                  All content is locked � <span className="text-[#00A86B]">enroll to unlock lessons & mock tests</span>
                 </p>
               )}
               <div className="space-y-3">
@@ -1408,8 +1615,8 @@ export default function StudentDashboard() {
                         </div>
                         <span className="text-xs text-slate-400 flex-shrink-0 ml-3">
                           {locked
-                            ? `${lessons.length} lessons${tests.length > 0 ? ` · ${tests.length} test${tests.length > 1 ? "s" : ""}` : ""} · Locked`
-                            : `${lessons.length} lessons${tests.length > 0 ? ` · ${tests.length} test${tests.length > 1 ? "s" : ""}` : ""}`}
+                            ? `${lessons.length} lessons${tests.length > 0 ? ` � ${tests.length} test${tests.length > 1 ? "s" : ""}` : ""} � Locked`
+                            : `${lessons.length} lessons${tests.length > 0 ? ` � ${tests.length} test${tests.length > 1 ? "s" : ""}` : ""}`}
                         </span>
                       </button>
                       {isExpanded && (
@@ -1474,7 +1681,7 @@ export default function StudentDashboard() {
                             <span className="text-xs font-semibold text-[#008f5a]">Type: Existing Course</span>
                           </div>
                         </div>
-                        <span className="text-xs text-slate-400 flex-shrink-0">{content?.loaded ? `${linkedMods.length} module${linkedMods.length === 1 ? "" : "s"} · ${linkLessonsCount} lessons` : ""}</span>
+                        <span className="text-xs text-slate-400 flex-shrink-0">{content?.loaded ? `${linkedMods.length} module${linkedMods.length === 1 ? "" : "s"} � ${linkLessonsCount} lessons` : ""}</span>
                       </button>
                       {isExpanded && (
                         <div className="border-t border-[#00A86B]/20">
@@ -1487,8 +1694,8 @@ export default function StudentDashboard() {
                               <div key={mod.id} className="px-6 py-3 border-b border-slate-100 last:border-0">
                                 <div className="flex items-center gap-2 mb-2">
                                   <span className="text-xs px-1.5 py-0.5 bg-[#00A86B]/10 text-[#008f5a] rounded flex-shrink-0 font-semibold">Module {mod.displayOrder}: {mod.title}</span>
-                                  <span className="text-xs text-slate-400">{cLessons.length} lessons{cTests.length > 0 ? ` · ${cTests.length} mock test${cTests.length === 1 ? "" : "s"}` : ""}</span>
-                                  {!isEnrolled && <span className="text-xs text-slate-400 flex-shrink-0">· Locked</span>}
+                                  <span className="text-xs text-slate-400">{cLessons.length} lessons{cTests.length > 0 ? ` � ${cTests.length} mock test${cTests.length === 1 ? "" : "s"}` : ""}</span>
+                                  {!isEnrolled && <span className="text-xs text-slate-400 flex-shrink-0">� Locked</span>}
                                 </div>
                                 {cLessons.length > 0 && (
                                   <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide mt-3 mb-1 flex items-center gap-1.5">
@@ -1538,10 +1745,10 @@ export default function StudentDashboard() {
               {!isEnrolled && (
                 <div className="mt-4 bg-gradient-to-r from-[#0B2545] to-[#13315c] rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
                   <div className="text-white">
-                    <p className="font-bold">{courseModules.length} module{courseModules.length !== 1 ? "s" : ""} · all lessons & mock tests locked</p>
+                    <p className="font-bold">{courseModules.length} module{courseModules.length !== 1 ? "s" : ""} � all lessons & mock tests locked</p>
                     <p className="text-xs text-slate-300 mt-0.5">
                       {(courseDetail.price || 0) > 0
-                        ? "Enroll now to unlock the full course content — checkout securely via Razorpay"
+                        ? "Enroll now to unlock the full course content � checkout securely via Razorpay"
                         : "Enroll now to unlock the full course content, lessons and mock tests"}
                     </p>
                   </div>
@@ -1569,130 +1776,252 @@ export default function StudentDashboard() {
     );
   }
 
-  /* ── DASHBOARD VIEW ───────────────────────────────────────── */
+  /* -- DASHBOARD VIEW ----------------------------------------- */
   if (!isMyCourses && !isInterviewKits && !isCertificates) {
+    const dashboardFirstName = user?.firstName || (user?.name ? user.name.split(" ")[0] : "Student");
+    const dashInProgress = enrollments.filter((e) => e.enrollmentStatus === "IN_PROGRESS" || e.enrollmentStatus === "ENROLLED");
+    const dashCompleted = enrollments.filter((e) => e.enrollmentStatus === "COMPLETED");
+    const dashContinueCourse = [...dashInProgress].sort((a, b) => (b.progressPercentage || 0) - (a.progressPercentage || 0))[0];
+    const dashEnrolledIds = new Set(enrollments.map((e) => e.courseId));
+    const dashNewCourses = publishedCourses.filter((c) => !dashEnrolledIds.has(c.id)).slice(0, 8);
+    const avgProgress = enrollments.length ? Math.round(enrollments.reduce((s, e) => s + (e.progressPercentage || 0), 0) / enrollments.length) : 0;
+    const dashStats = [
+      { label: "My Courses", value: enrollments.length, sub: "Enrolled", icon: BookOpen, bg: "bg-blue-50", iconColor: "text-blue-600", border: "border-blue-100" },
+      { label: "In Progress", value: dashInProgress.length, sub: "Courses", icon: PlayCircle, bg: "bg-amber-50", iconColor: "text-amber-600", border: "border-amber-100" },
+      { label: "Completed Courses", value: dashCompleted.length, sub: "Courses", icon: CheckCircle, bg: "bg-emerald-50", iconColor: "text-emerald-600", border: "border-emerald-100" },
+      { label: "Average Progress", value: avgProgress + "%", sub: "Overall", icon: TrendingUp, bg: "bg-violet-50", iconColor: "text-violet-600", border: "border-violet-100" },
+    ];
+    const gradSet = [
+      { bg: "from-[#0B2545] to-[#13315c]", accent: "#00A86B" },
+      { bg: "from-[#134e4a] to-[#0f766e]", accent: "#34d399" },
+      { bg: "from-[#1e1b4b] to-[#312e81]", accent: "#818cf8" },
+      { bg: "from-[#450a0a] to-[#7f1d1d]", accent: "#f87171" },
+      { bg: "from-[#422006] to-[#78350f]", accent: "#fbbf24" },
+    ];
+    const lvl = { BEGINNER: { bg: "bg-emerald-50", text: "text-emerald-700" }, INTERMEDIATE: { bg: "bg-amber-50", text: "text-amber-700" }, ADVANCED: { bg: "bg-rose-50", text: "text-rose-700" } };
+    const stc = { ENROLLED: "bg-blue-50 text-blue-600", IN_PROGRESS: "bg-amber-50 text-amber-600", COMPLETED: "bg-emerald-50 text-emerald-600" };
+    const greet = getGreeting();
+    const weeklyActivityData = [0, 0, 0, 0, 0, 0, 0];
+    const dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    const maxActivity = Math.max(1, ...weeklyActivityData);
+    const myInterviewKits = enrolledKits.slice(0, 3);
+
+    const formatRelativeTime = (dateStr) => {
+      if (!dateStr) return "";
+      const date = new Date(dateStr);
+      const now = new Date();
+      const diffMs = now - date;
+      const diffSec = Math.floor(diffMs / 1000);
+      const diffMin = Math.floor(diffSec / 60);
+      const diffHour = Math.floor(diffMin / 60);
+      const diffDay = Math.floor(diffHour / 24);
+      if (diffSec < 60) return "Just now";
+      if (diffMin < 60) return `${diffMin}m ago`;
+      if (diffHour < 24) return `${diffHour}h ago`;
+      if (diffDay < 7) return `${diffDay}d ago`;
+      return date.toLocaleDateString();
+    };
+
+    const getActivityIcon = (type) => {
+      const t = (type || "").toLowerCase();
+      if (t === "lesson") return <BookOpenCheck size={16} className="text-[#00A86B]" />;
+      if (t === "mocktest" || t === "mock_test" || t === "test") return <NotebookPen size={16} className="text-blue-600" />;
+      if (t === "coding" || t === "programming") return <Code size={16} className="text-violet-600" />;
+      return <Activity size={16} className="text-slate-500" />;
+    };
+
+    const getActivityIconBg = (type) => {
+      const t = (type || "").toLowerCase();
+      if (t === "lesson") return "bg-emerald-50";
+      if (t === "mocktest" || t === "mock_test" || t === "test") return "bg-blue-50";
+      if (t === "coding" || t === "programming") return "bg-violet-50";
+      return "bg-slate-50";
+    };
+
+    const filteredActivity = learningActivity.filter((item) => {
+      if (learningActivityFilter === "ALL") return true;
+      const t = (item.type || "").toLowerCase();
+      if (learningActivityFilter === "LESSONS") return t === "lesson";
+      if (learningActivityFilter === "MOCK_TESTS") return t === "mocktest" || t === "mock_test" || t === "test";
+      if (learningActivityFilter === "CODING") return t === "coding" || t === "programming";
+      return true;
+    });
+
     return (
-      <div className="p-6 space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">{getGreeting()}, {firstName}!</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Welcome back! Continue your learning journey.</p>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          {stats.map(({ label, value, sub, color, iconBg, Icon }) => (
-            <div key={label} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex items-start justify-between mb-3"><div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: color }}><Icon size={18} color={iconBg} /></div></div>
-              <p className="text-2xl font-bold text-slate-800">{value}</p>
-              <p className="text-xs font-medium text-slate-600 mt-0.5">{label}</p>
-              <p className="text-[11px] text-slate-400 mt-0.5">{sub}</p>
+      <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-6">
+        {/* <div className="bg-gradient-to-r from-[#0B2545] to-[#13315c] rounded-2xl p-3 sm:p-4 text-white shadow-lg">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <h1 className="text-base sm:text-lg lg:text-xl font-bold">{greet}, {dashboardFirstName}!</h1>
+              <p className="text-slate-200 mt-0.5 text-[10px] sm:text-[11px]">Continue your learning journey and achieve your goals.</p>
             </div>
-          ))}
-        </div>
-        {continueCourse && (
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-semibold text-slate-800">Continue Learning</h2>
-              <button onClick={() => navigate("/StudentDashboard/my-courses")} className="text-[#00A86B] text-xs font-medium hover:underline">View All</button>
-            </div>
-            <div className="flex gap-5">
-              <div className="w-44 h-28 rounded-xl shrink-0 overflow-hidden">
-                {continueCourse.thumbnailUrl ? <img src={continueCourse.thumbnailUrl} alt={continueCourse.title} className="w-full h-full object-cover" /> : <div className={`w-full h-full bg-gradient-to-br ${COURSE_GRADIENTS[0].bg} flex items-center justify-center`}><span className="text-2xl font-black" style={{ color: COURSE_GRADIENTS[0].accent }}>{(continueCourse.title || "C").charAt(0)}</span></div>}
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-slate-800 text-sm">{continueCourse.title}</h3>
-                <p className="text-xs text-[#00A86B] font-medium mt-0.5">{continueCourse.enrollmentStatus === "IN_PROGRESS" ? "In Progress" : "Enrolled"}</p>
-                <div className="mt-3 flex items-center gap-3">
-                  <div className="flex-1 bg-slate-100 rounded-full h-2 overflow-hidden"><div className="bg-[#00A86B] h-2 rounded-full transition-all" style={{ width: `${continueCourse.progressPercentage || 0}%` }} /></div>
-                  <span className="text-xs font-medium text-slate-600 shrink-0">{continueCourse.progressPercentage || 0}%</span>
-                </div>
-                <button onClick={() => openCourseDetail(continueCourse.courseId)} className="mt-3 inline-flex items-center gap-2 bg-[#00A86B] hover:bg-[#008f5a] text-white text-xs font-medium px-4 py-2 rounded-xl transition-colors"><Play size={12} /> Continue Learning</button>
-              </div>
-            </div>
-          </div>
-        )}
-        {enrollments.length > 0 && (
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-semibold text-slate-800">My Courses</h2>
-              <button onClick={() => navigate("/StudentDashboard/my-courses")} className="text-[#00A86B] text-xs font-medium hover:underline">View All</button>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {enrollments.slice(0, 3).map((course, i) => {
-                const grad = COURSE_GRADIENTS[i % COURSE_GRADIENTS.length];
-                const levelStyle = LEVEL_COLORS[course.level] || LEVEL_COLORS.BEGINNER;
-                return (
-                  <div key={course.courseId} className="rounded-xl border border-slate-100 overflow-hidden hover:shadow-md transition-shadow cursor-pointer" onClick={() => openCourseDetail(course.courseId)}>
-                    <div className="h-24 flex items-center justify-center relative overflow-hidden">
-                      {course.thumbnailUrl ? <img src={course.thumbnailUrl} alt={course.title} className="w-full h-full object-cover" /> : <div className={`w-full h-full bg-gradient-to-br ${grad.bg} flex items-center justify-center`}><span className="text-2xl font-black" style={{ color: grad.accent }}>{(course.title || "C").charAt(0)}</span></div>}
-                      <span className={`absolute top-2 right-2 text-[10px] font-semibold px-2 py-0.5 rounded-full ${STATUS_COLORS[course.enrollmentStatus] || "bg-slate-100 text-slate-500"}`}>{course.enrollmentStatus?.replace("_", " ")}</span>
-                    </div>
-                    <div className="p-3">
-                      <p className="text-xs font-semibold text-slate-800 leading-snug line-clamp-2">{course.title}</p>
-                      {course.level && <span className={`inline-block mt-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded ${levelStyle.bg} ${levelStyle.text}`}>{course.level}</span>}
-                      <div className="mt-2 flex items-center gap-2"><div className="flex-1 bg-slate-100 rounded-full h-1.5"><div className="h-1.5 rounded-full bg-[#00A86B]" style={{ width: `${course.progressPercentage || 0}%` }} /></div><span className="text-[10px] text-slate-500">{course.progressPercentage || 0}%</span></div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-        {newCourses.length > 0 && (
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-            <div className="flex items-center justify-between mb-4"><h2 className="font-semibold text-slate-800">Recently Added</h2></div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {newCourses.map((course, i) => {
-                const grad = COURSE_GRADIENTS[(i + 3) % COURSE_GRADIENTS.length];
-                return (
-                  <div key={course.id} className="rounded-xl border border-slate-100 overflow-hidden hover:shadow-md transition-shadow cursor-pointer" onClick={() => openCourseDetail(course.id)}>
-                    <div className="h-24 flex items-center justify-center relative overflow-hidden">
-                      {course.thumbnailUrl ? <img src={course.thumbnailUrl} alt={course.title} className="w-full h-full object-cover" /> : <div className={`w-full h-full bg-gradient-to-br ${grad.bg} flex items-center justify-center`}><span className="text-2xl font-black" style={{ color: grad.accent }}>{(course.title || "N").charAt(0)}</span></div>}
-                      <span className="absolute top-2 right-2 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#00A86B] text-white">NEW</span>
-                    </div>
-                    <div className="p-3"><p className="text-xs font-semibold text-slate-800 leading-snug">{course.title}</p><p className="text-[10px] text-slate-400 mt-0.5">{course.language || "English"}</p></div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-        {enrollments.length === 0 && (
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 text-center">
-            <BookOpen className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-            <h2 className="text-lg font-bold text-[#0B2545] mb-2">Start your learning journey</h2>
-            <p className="text-sm text-slate-500 mb-6 max-w-md mx-auto">Browse the course catalog and enroll in a course to get started.</p>
-            <button onClick={() => navigate("/courses")} className="inline-flex items-center gap-2 bg-[#00A86B] hover:bg-[#008f5a] text-white font-semibold px-6 py-3 rounded-xl shadow-md hover:shadow-lg transition-all duration-200">Explore Courses</button>
-          </div>
-        )}
-        {/* <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          <div className="xl:col-span-2" />
-          <div className="space-y-6 hidden xl:block">
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-6">
-              <div>
-                <h2 className="font-semibold text-slate-800 text-sm mb-3">Upcoming Deadlines</h2>
-                <div className="space-y-3">
-                  {inProgress.slice(0, 3).map((course, i) => (
-                    <div key={course.courseId} className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => openCourseDetail(course.courseId)}>
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${i === 0 ? "bg-rose-100" : "bg-[#00A86B]/10"}`}><Calendar size={14} color={i === 0 ? "#e11d48" : "#00A86B"} /></div>
-                      <div className="flex-1 min-w-0"><p className="text-xs font-semibold text-slate-800">{course.title}</p><p className="text-[10px] text-slate-400 mt-0.5">{course.progressPercentage || 0}% completed</p></div>
-                    </div>
-                  ))}
-                  {inProgress.length === 0 && <p className="text-xs text-slate-400 text-center py-4">No upcoming deadlines</p>}
-                </div>
-              </div>
-              <div>
-                <h2 className="font-semibold text-slate-800 text-sm mb-3">Weekly Progress</h2>
-                <div className="flex items-end gap-1.5 h-20">
-                  {weeklyData.map((h, i) => (<div key={i} className="flex-1 flex flex-col items-center gap-1"><div className="w-full rounded-t-lg" style={{ height: `${h}%`, background: i === 4 ? "#00A86B" : "#d1fae5" }} /><span className="text-[9px] text-slate-400">{dayLabels[i]}</span></div>))}
-                </div>
-              </div>
+            <div className="hidden md:flex items-center gap-1.5 text-slate-300 text-[10px]">
+              <Calendar size={12} />
+              <span>{new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</span>
             </div>
           </div>
         </div> */}
+        <div>
+          <h2 className="text-lg font-bold text-[#0B2545] mb-3">Learning Statistics</h2>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            {dashStats.map((stat, idx) => {
+              const Icon = stat.icon;
+              return (
+                <div key={idx} className={"bg-white rounded-xl p-4 sm:p-5 border " + stat.border + " shadow-sm hover:shadow-md transition-all duration-200 h-full"}>
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <div className={"w-10 h-10 rounded-lg " + stat.bg + " flex items-center justify-center"}><Icon size={20} className={stat.iconColor} /></div>
+                    <p className="text-2xl sm:text-3xl font-bold text-[#0B2545]">{stat.value}</p>
+                  </div>
+                  <p className="text-sm font-semibold text-slate-700">{stat.label}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">{stat.sub}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          <div className="xl:col-span-2 space-y-6">
+            {dashContinueCourse ? (
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+                <div className="p-4 sm:p-6">
+                  <h2 className="text-lg font-bold text-[#0B2545] mb-4">Continue Learning</h2>
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    <div className="w-full sm:w-48 lg:w-56 shrink-0 aspect-video rounded-xl overflow-hidden bg-slate-100">
+                      {dashContinueCourse.thumbnailUrl ? <img src={dashContinueCourse.thumbnailUrl} alt={dashContinueCourse.title} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gradient-to-br from-[#0B2545] to-[#00A86B] flex items-center justify-center"><span className="text-3xl font-black text-white">{(dashContinueCourse.title || "C").charAt(0)}</span></div>}
+                    </div>
+                    <div className="flex-1 min-w-0 flex flex-col">
+                      <h3 className="text-base sm:text-lg font-bold text-[#0B2545] leading-snug">{dashContinueCourse.title}</h3>
+                      <span className={"mt-2 inline-flex w-fit px-2.5 py-1 rounded-full text-xs font-semibold " + (stc[dashContinueCourse.enrollmentStatus] || "bg-slate-100 text-slate-600")}>{dashContinueCourse.enrollmentStatus ? dashContinueCourse.enrollmentStatus.replace("_", " ") : ""}</span>
+                      <div className="mt-4">
+                        <div className="flex items-center justify-between text-xs mb-1.5"><span className="text-slate-600 font-medium">Completion</span><span className="text-[#00A86B] font-bold">{dashContinueCourse.progressPercentage || 0}%</span></div>
+                        <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden"><div className="bg-[#00A86B] h-2 rounded-full transition-all duration-500" style={{ width: (dashContinueCourse.progressPercentage || 0) + "%" }} /></div>
+                      </div>
+                      <button onClick={() => openCourseDetail(dashContinueCourse.courseId)} className="mt-auto pt-4 inline-flex items-center gap-2 bg-[#00A86B] hover:bg-[#008f5a] text-white text-sm font-semibold px-5 py-2.5 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 w-fit"><PlayCircle size={18} />Continue Learning<ArrowRight size={16} /></button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 sm:p-8 text-center">
+                <BookOpen className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                <h2 className="text-lg font-bold text-[#0B2545] mb-2">Start your learning journey</h2>
+                <p className="text-sm text-slate-600 mb-6 max-w-md mx-auto">Browse the course catalog and enroll in a course to get started.</p>
+                <button onClick={() => navigate("/courses")} className="inline-flex items-center gap-2 bg-[#00A86B] hover:bg-[#008f5a] text-white text-sm font-semibold px-6 py-2.5 rounded-xl shadow-sm hover:shadow-md transition-all duration-200">Browse Courses<ArrowRight size={16} /></button>
+              </div>
+            )}
+
+            {enrollments.length > 0 && (
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                <div className="p-4 sm:p-6">
+                  <div className="flex items-center justify-between mb-4"><h2 className="text-lg font-bold text-[#0B2545]">My Courses</h2><button onClick={() => navigate("/StudentDashboard/my-courses")} className="text-sm text-[#00A86B] font-medium hover:underline flex items-center gap-1">View All <ChevronRight size={16} /></button></div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {enrollments.slice(0, 4).map((course, i) => {
+                      const grad = gradSet[i % gradSet.length];
+                      const levelStyle = lvl[course.level] || lvl.BEGINNER;
+                      return (
+                        <div key={course.courseId} className="rounded-xl border border-slate-100 overflow-hidden hover:shadow-lg transition-all duration-200 cursor-pointer group hover:border-[#00A86B]/30 flex flex-col" onClick={() => openCourseDetail(course.courseId)}>
+                          <div className="aspect-video relative overflow-hidden bg-slate-100">{course.thumbnailUrl ? <img src={course.thumbnailUrl} alt={course.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" /> : <div className={"w-full h-full bg-gradient-to-br " + grad.bg + " flex items-center justify-center"}><span className="text-2xl font-black" style={{ color: grad.accent }}>{(course.title||"C").charAt(0)}</span></div>}</div>
+                          <div className="p-4 flex flex-col flex-1">
+                            <h3 className="text-sm font-bold text-[#0B2545] leading-snug line-clamp-2 group-hover:text-[#00A86B] transition-colors">{course.title}</h3>
+                            <div className="mt-2 flex flex-wrap items-center gap-2">{course.level && <span className={"text-[10px] font-semibold px-2 py-0.5 rounded " + levelStyle.bg + " " + levelStyle.text}>{course.level}</span>}{course.enrollmentStatus && <span className={"text-[10px] font-semibold px-2 py-0.5 rounded-full " + (stc[course.enrollmentStatus]||"bg-slate-100 text-slate-600")}>{course.enrollmentStatus.replace("_"," ")}</span>}</div>
+                            <div className="mt-auto pt-3"><div className="flex items-center justify-between text-xs mb-1"><span className="text-slate-600">Progress</span><span className="font-semibold text-[#00A86B]">{course.progressPercentage||0}%</span></div><div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden"><div className="h-1.5 rounded-full bg-[#00A86B]" style={{ width: (course.progressPercentage||0)+"%" }} /></div><button className="mt-2 w-full text-center text-xs font-semibold text-[#00A86B] hover:underline">Continue</button></div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="space-y-6">
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="p-4 sm:p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <div><h2 className="text-base font-bold text-[#0B2545]">My Learning Activity</h2><p className="text-xs text-slate-500 mt-0.5">Track your recent learning progress</p></div>
+                  <Activity size={18} className="text-slate-400" />
+                </div>
+                <div className="flex flex-wrap items-center gap-2 mb-4">
+                  {[
+                    { key: "ALL", label: "All Activity" },
+                    { key: "LESSONS", label: "Lessons" },
+                    { key: "MOCK_TESTS", label: "Mock Tests" },
+                    { key: "CODING", label: "Coding" },
+                  ].map((tab) => (
+                    <button
+                      key={tab.key}
+                      onClick={() => setLearningActivityFilter(tab.key)}
+                      className={`px-2.5 py-1 text-xs font-medium rounded-lg transition-colors ${learningActivityFilter === tab.key ? "bg-[#00A86B] text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+                {learningActivityLoading ? (
+                  <div className="flex items-center justify-center py-8"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#00A86B]" /></div>
+                ) : filteredActivity.length === 0 ? (
+                  <div className="text-center py-8"><Activity className="w-10 h-10 text-slate-300 mx-auto mb-2" /><p className="text-sm text-slate-500">No learning activity yet</p><p className="text-xs text-slate-400 mt-1">Start learning to see your recent activities</p></div>
+                ) : (
+                  <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+                    {filteredActivity.slice(0, 20).map((item, idx) => (
+                      <button
+                        key={item.id || idx}
+                        onClick={() => {
+                          if (item.targetUrl) {
+                            navigate(item.targetUrl);
+                          } else if (item.type?.toLowerCase() === "lesson" && item.targetId) {
+                            // try to open via course if possible - fallback to dashboard
+                          }
+                        }}
+                        className={`w-full text-left flex items-start gap-3 p-3 rounded-xl border border-slate-100 hover:border-[#00A86B]/40 hover:bg-slate-50/50 transition-all ${item.targetUrl ? "cursor-pointer" : "cursor-default"}`}
+                      >
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${getActivityIconBg(item.type)}`}>
+                          {getActivityIcon(item.type)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-sm font-semibold text-[#0B2545] line-clamp-1">{item.title || item.action || "Activity"}</p>
+                            <span className="text-[11px] text-slate-400 flex-shrink-0">{formatRelativeTime(item.occurredAt)}</span>
+                          </div>
+                          {item.description && <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{item.description}</p>}
+                          {item.action && item.title && item.action !== item.title && <p className="text-[11px] text-slate-400 mt-0.5">{item.action}</p>}
+                        </div>
+                        {item.targetUrl && <ChevronRight size={14} className="text-slate-300 mt-1 flex-shrink-0" />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {filteredActivity.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-slate-100">
+                    <button onClick={() => navigate("/StudentDashboard/my-courses")} className="w-full text-center text-sm text-[#00A86B] font-medium hover:underline">View All</button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            
+
+                        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="p-4 sm:p-5">
+                <div className="flex items-center justify-between mb-3"><h2 className="text-base font-bold text-[#0B2545] flex items-center gap-2"><Briefcase size={18} className="text-[#00A86B]" />My Interview Kits</h2><button onClick={() => navigate("/StudentDashboard/interview-kits")} className="text-xs text-[#00A86B] font-medium hover:underline flex items-center gap-1 shrink-0">View All <ChevronRight size={14} /></button></div>
+                {myInterviewKits.length > 0 ? (
+                  <div className="space-y-2">{myInterviewKits.map((kit, idx) => { const kitStatus = kit.enrollmentStatus || kit.status; return (<button key={kit.enrollmentId||idx} onClick={() => navigate("/StudentDashboard/interview-kits")} className="w-full flex items-center gap-3 p-3 rounded-xl border border-slate-100 hover:border-[#00A86B]/30 hover:shadow-sm transition-all text-left"><div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#422006] to-[#78350f] flex items-center justify-center shrink-0"><Briefcase size={18} className="text-amber-300" /></div><div className="flex-1 min-w-0"><p className="text-sm font-semibold text-[#0B2545] line-clamp-1">{kit.kitName||kit.name}</p>{kitStatus && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 mt-1 inline-block">{String(kitStatus).replace(/_/g," ")}</span>}</div><ArrowRight size={16} className="text-slate-400 shrink-0" /></button>);})}</div>
+                ) : (
+                  <div className="text-center py-4"><Briefcase className="w-10 h-10 text-slate-300 mx-auto mb-2" /><p className="text-sm text-slate-500 mb-3">No interview kits enrolled</p><button onClick={() => navigate("/StudentDashboard/interview-kits")} className="inline-flex items-center gap-1.5 bg-[#00A86B] hover:bg-[#008f5a] text-white text-xs font-semibold px-4 py-2 rounded-xl transition-colors">Explore Kits <ArrowRight size={14} /></button></div>
+                )}
+              </div>
+            </div>
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="p-4 sm:p-5"><h2 className="text-base font-bold text-[#0B2545] flex items-center gap-2 mb-3"><Code2 size={18} className="text-[#00A86B]" />Programming Practice</h2><div className="flex items-start gap-3"><div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center shrink-0"><Code2 size={20} className="text-blue-600" /></div><div className="min-w-0 flex-1"><p className="text-sm text-slate-600 leading-relaxed mb-3">Sharpen your coding skills with hands-on practice problems.</p><button onClick={() => navigate("/StudentDashboard/programming-questions")} className="w-full inline-flex items-center justify-center gap-2 bg-[#00A86B] hover:bg-[#008f5a] text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors">Practice Now <ArrowRight size={16} /></button></div></div></div>
+            </div>
+          </div>
+        </div>
+        <RecentlyAddedCoursesCarousel courses={dashNewCourses} gradSet={gradSet} onOpenCourse={openCourseDetail} onViewAll={() => navigate("/courses")} />
       </div>
     );
   }
 
-  /* ── INTERVIEW KITS VIEW ─────────────────────────────────── */
+  /* -- INTERVIEW KITS VIEW ----------------------------------- */
   if (isInterviewKits) {
     return (
       <div className="p-6 space-y-6">
@@ -1700,7 +2029,7 @@ export default function StudentDashboard() {
           <div>
             <h1 className="text-2xl font-bold text-slate-800">Interview Kits</h1>
             <p className="text-sm text-slate-500 mt-0.5">
-              {enrolledKits.length} enrolled kit{enrolledKits.length !== 1 ? "s" : ""} · {publishedKits.length} available
+              {enrolledKits.length} enrolled kit{enrolledKits.length !== 1 ? "s" : ""} � {publishedKits.length} available
             </p>
           </div>
           <div className="relative">
@@ -1736,7 +2065,7 @@ export default function StudentDashboard() {
                     <p className="text-sm font-bold text-slate-800 leading-snug">{kit.name}</p>
                     <div className="flex items-center gap-2 mt-1.5">
                       <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700">{kit.level}</span>
-                      <span className="text-[10px] text-slate-400">{kit.price > 0 ? `₹${kit.price}` : "Free"}</span>
+                      <span className="text-[10px] text-slate-400">{kit.price > 0 ? `?${kit.price}` : "Free"}</span>
                     </div>
                   </div>
                 </div>
@@ -1780,7 +2109,7 @@ export default function StudentDashboard() {
                       <span className="text-[10px] text-slate-400">{kit.questionCount || 0} questions</span>
                     </div>
                     <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
-                      <span className="text-xs font-bold text-[#00A86B]">{kit.price > 0 ? `₹${kit.price}` : "Free"}</span>
+                      <span className="text-xs font-bold text-[#00A86B]">{kit.price > 0 ? `?${kit.price}` : "Free"}</span>
                       {kit.price > 0 ? (
                         <button
                           onClick={() => handleEnrollOrBuyKit(kit)}
@@ -1814,7 +2143,7 @@ export default function StudentDashboard() {
     );
   }
 
-  /* ── CERTIFICATES VIEW ────────────────────────────────────── */
+  /* -- CERTIFICATES VIEW -------------------------------------- */
   if (isCertificates) {
     const studentName = [user?.firstName, user?.lastName].filter(Boolean).join(" ") || "Student";
     const unlockedCount = enrollments.filter((e) => e.enrollmentStatus === "COMPLETED").length;
@@ -1838,7 +2167,7 @@ export default function StudentDashboard() {
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Certificates</h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            {unlockedCount} of {enrollments.length} certificate{enrollments.length === 1 ? "" : "s"} unlocked — complete a course to unlock its certificate
+            {unlockedCount} of {enrollments.length} certificate{enrollments.length === 1 ? "" : "s"} unlocked � complete a course to unlock its certificate
           </p>
         </div>
 
@@ -1950,7 +2279,7 @@ export default function StudentDashboard() {
     );
   }
 
-  /* ── MY COURSES VIEW ──────────────────────────────────────── */
+  /* -- MY COURSES VIEW ---------------------------------------- */
   const availableCourses = publishedCourses.filter((c) => !enrolledIds.has(c.id));
   const filteredAvailable = availableCourses.filter((c) =>
     courseSearch ? c.title?.toLowerCase().includes(courseSearch.toLowerCase()) : true
@@ -1962,7 +2291,7 @@ export default function StudentDashboard() {
         <div>
           <h1 className="text-2xl font-bold text-slate-800">My Courses</h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            {enrollments.length} enrolled course{enrollments.length !== 1 ? "s" : ""} · {availableCourses.length} available
+            {enrollments.length} enrolled course{enrollments.length !== 1 ? "s" : ""} � {availableCourses.length} available
           </p>
         </div>
         <div className="relative">
@@ -2056,9 +2385,9 @@ export default function StudentDashboard() {
                     </div>
                     <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
                       <div className="flex items-baseline gap-1.5">
-                        <span className="text-sm font-black text-[#0B2545]">₹{enriched.price}</span>
+                        <span className="text-sm font-black text-[#0B2545]">?{enriched.price}</span>
                         {enriched.originalPrice > (enriched.price || 0) && (
-                          <span className="text-[10px] text-slate-400 line-through">₹{enriched.originalPrice}</span>
+                          <span className="text-[10px] text-slate-400 line-through">?{enriched.originalPrice}</span>
                         )}
                       </div>
                       <button

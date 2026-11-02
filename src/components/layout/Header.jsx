@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Menu, X, LogOut, User, LayoutDashboard, BookOpen, ShoppingCart, ChevronDown } from "lucide-react";
 import Logo from "../common/Logo";
 import { useAuth } from "../../context/AuthContext";
@@ -21,6 +21,7 @@ export default function Header() {
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
   const { isAuthenticated, role, logout, user } = useAuth();
+  const location = useLocation();
 
   const refreshCartCount = useCallback(() => {
     if (!isAuthenticated || role !== "STUDENT") return;
@@ -73,22 +74,25 @@ export default function Header() {
 
         {/* Desktop Nav Links */}
         <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600">
-          {navLinks.map((link, idx) => (
-            <Link
-              key={link.label}
-              to={link.href}
-              data-aos="fade-down"
-              data-aos-duration="400"
-              data-aos-delay={idx * 60}
-              className={`hover:text-[#0B2545] transition-colors duration-200 ${
-                link.label === "Home"
-                  ? "text-[#00A86B] font-semibold"
-                  : ""
-              }`}
-            >
-              {link.label}
-            </Link>
-          ))}
+          {navLinks.map((link, idx) => {
+            const isActive =
+              location.pathname === link.href ||
+              (link.href !== "/" && location.pathname.startsWith(link.href));
+            return (
+              <Link
+                key={link.label}
+                to={link.href}
+                data-aos="fade-down"
+                data-aos-duration="400"
+                data-aos-delay={idx * 60}
+                className={`hover:text-[#00A86B] transition-colors duration-200 ${
+                  isActive ? "text-[#00A86B] font-semibold" : "text-slate-600"
+                }`}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
         </nav>
 
         {/* Search & Actions */}
@@ -226,18 +230,23 @@ export default function Header() {
       {/* Mobile Dropdown */}
       {mobileMenuOpen && (
         <div className="md:hidden border-b border-slate-200 bg-white px-4 pt-2 pb-6 space-y-3">
-          {navLinks.map((link) => (
-            <Link
-              key={link.label}
-              to={link.href}
-              onClick={() => setMobileMenuOpen(false)}
-              className={`block text-base font-medium transition-colors duration-200 ${
-                link.label === "Home" ? "text-[#00A86B]" : "text-slate-600"
-              }`}
-            >
-              {link.label}
-            </Link>
-          ))}
+          {navLinks.map((link) => {
+            const isActive =
+              location.pathname === link.href ||
+              (link.href !== "/" && location.pathname.startsWith(link.href));
+            return (
+              <Link
+                key={link.label}
+                to={link.href}
+                onClick={() => setMobileMenuOpen(false)}
+                className={`block text-base font-medium transition-colors duration-200 ${
+                  isActive ? "text-[#00A86B] font-semibold" : "text-slate-600 hover:text-[#00A86B]"
+                }`}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
           <div className="pt-4 flex flex-col gap-2">
             {isAuthenticated ? (
               <>

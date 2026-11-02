@@ -53,7 +53,8 @@ api.interceptors.response.use(
       originalRequest &&
       !originalRequest._retry &&
       !originalRequest.url?.includes("/api/auth/login") &&
-      !originalRequest.url?.includes("/api/auth/refresh-token")
+      !originalRequest.url?.includes("/api/auth/refresh-token") &&
+      !originalRequest.url?.includes("/api/student/my-learning-activity")
     ) {
       const refreshTokenValue = localStorage.getItem("refreshToken");
 
