@@ -6,26 +6,36 @@ const features = [
     icon: BookOpen,
     title: "Learn the latest skills",
     desc: "Stay ahead with modern curriculum tailored for technology, business, and design careers.",
+    card: "bg-teal-50/80 border-teal-100 hover:border-teal-300",
+    iconBox: "bg-teal-100 text-teal-600",
   },
   {
     icon: Users,
     title: "Get ready for a career",
     desc: "Gain practical hands-on portfolio experience with guided real-world projects.",
+    card: "bg-sky-50/80 border-sky-100 hover:border-sky-300",
+    iconBox: "bg-sky-100 text-sky-600",
   },
   {
     icon: Globe,
     title: "Earn accredited credentials",
     desc: "Share your verified certificate on LinkedIn and elevate your professional profile.",
+    card: "bg-amber-50/80 border-amber-100 hover:border-amber-300",
+    iconBox: "bg-amber-100 text-amber-600",
   },
   {
     icon: Trophy,
     title: "Achieve your goals",
     desc: "Track progress, earn milestones and unlock new heights with every completed step.",
+    card: "bg-violet-50/80 border-violet-100 hover:border-violet-300",
+    iconBox: "bg-violet-100 text-violet-600",
   },
   {
     icon: Rocket,
     title: "Accelerate your growth",
     desc: "Access dedicated mentors and career guidance to fast-track your success.",
+    card: "bg-rose-50/80 border-rose-100 hover:border-rose-300",
+    iconBox: "bg-rose-100 text-rose-600",
   },
 ];
 
@@ -80,8 +90,8 @@ export default function Features() {
                   className="px-3 flex-shrink-0"
                   style={{ width: `${100 / VISIBLE}%` }}
                 >
-                  <div className="h-full p-7 rounded-2xl bg-slate-50 border border-slate-100 hover:border-[#00A86B]/30 hover:shadow-xl transition-all duration-300 group">
-                    <div className="w-12 h-12 bg-teal-50 text-[#00A86B] rounded-xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300">
+                  <div className={`h-full p-7 rounded-2xl border hover:shadow-xl transition-all duration-300 group ${feature.card}`}>
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300 ${feature.iconBox}`}>
                       <feature.icon className="w-6 h-6" />
                     </div>
                     <h3 className="text-lg font-bold text-[#0B2545] mb-3">

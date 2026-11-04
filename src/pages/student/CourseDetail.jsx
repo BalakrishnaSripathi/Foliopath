@@ -149,7 +149,7 @@ export default function CourseDetail() {
         setRelatedCourses(
           courses
             .filter((c) => c.id != courseId)
-            .slice(0, 3)
+            .slice(0, 4)
             .map(enrichCourse)
         );
       })
@@ -454,21 +454,21 @@ export default function CourseDetail() {
     <div className="min-h-screen bg-slate-50">
       <Header />
       {/* Hero */}
-      <div className="bg-[#0B2545] text-white py-12 sm:py-16">
+      <div className="bg-[#0B2545] text-white py-8 sm:py-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid lg:grid-cols-3 gap-8 lg:gap-12">
+          <div className="grid lg:grid-cols-3 gap-6 lg:gap-8">
             <div className="lg:col-span-2">
               <span className="text-xs font-bold text-[#00A86B] tracking-wider uppercase">
                 {levelLabels[course.level] || "Course"}
               </span>
-              <h1 className="text-2xl sm:text-3xl font-bold mt-2 mb-4">
+              <h1 className="text-xl sm:text-2xl font-bold mt-1.5 mb-3">
                 {course.title}
               </h1>
-              <p className="text-slate-300 text-sm leading-relaxed mb-6">
+              <p className="text-slate-300 text-sm leading-relaxed mb-4">
                 {course.shortDescription || course.description}
               </p>
 
-              <div className="flex flex-wrap items-center gap-4 text-sm text-slate-300">
+              <div className="flex flex-wrap items-center gap-3 text-sm text-slate-300">
                 <span className="flex items-center gap-1">
                   <BookOpen className="w-4 h-4" />
                   {modules.length + sortedCourseLinks.length} modules &middot; {totalLessons} lessons
@@ -489,19 +489,19 @@ export default function CourseDetail() {
             </div>
 
             {/* Enroll Card */}
-            <div className="bg-white rounded-2xl p-6 text-[#0B2545] shadow-xl self-start">
+            <div className="bg-white rounded-xl p-4 text-[#0B2545] shadow-xl self-start">
               {course.thumbnailUrl && (
                 <img
                   src={course.thumbnailUrl}
                   alt={course.title}
-                  className="w-full h-40 object-cover rounded-xl mb-4"
+                  className="w-full h-28 object-cover rounded-lg mb-3"
                 />
               )}
-              <div className="text-3xl font-black mb-1">
+              <div className="text-2xl font-black mb-1">
                 ₹{course.price || 0}
               </div>
               {(course.price || 0) > 0 && (
-                <p className="text-xs text-slate-400 mb-4">
+                <p className="text-xs text-slate-400 mb-3">
                   One-time payment &middot; lifetime access
                 </p>
               )}
@@ -509,7 +509,7 @@ export default function CourseDetail() {
               <button
                 onClick={handleEnroll}
                 disabled={(isAuthenticated && !isStudent) || enrolling || addingToCart}
-                className="w-full py-3 bg-[#00A86B] hover:bg-[#008f5a] text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full py-2.5 bg-[#00A86B] hover:bg-[#008f5a] text-white text-sm font-bold rounded-lg shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {enrollButtonLabel}
               </button>
@@ -526,7 +526,7 @@ export default function CourseDetail() {
                 </p>
               )}
 
-              <div className="mt-4 space-y-2 text-sm text-slate-600">
+              <div className="mt-3 space-y-1.5 text-xs text-slate-600">
                 <div className="flex items-center gap-2">
                   <BookOpen className="w-4 h-4 text-slate-400" />
                   {modules.length + sortedCourseLinks.length} modules &middot; {totalLessons} lessons
@@ -689,7 +689,7 @@ export default function CourseDetail() {
                 Related Courses
               </h2>
               {relatedCourses.length > 0 ? (
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
                   {relatedCourses.map((relCourse) => (
                     <CourseCard key={relCourse.id} course={relCourse} />
                   ))}

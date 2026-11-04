@@ -18,9 +18,9 @@ export default function LearnerOutcomes() {
             className="order-2 lg:order-1 relative"
           >
             <img
-              src="https://images.unsplash.com/photo-1531482615713-2afd69097998?auto=format&fit=crop&w=800&q=80"
-              alt="Students studying together"
-              className="rounded-2xl shadow-lg border-4 border-white"
+              src="https://images.pexels.com/photos/18067562/pexels-photo-18067562.jpeg?auto=compress&cs=tinysrgb&w=1200"
+              alt="Indian women learning together on a laptop"
+              className="w-full h-80 lg:h-[420px] object-cover rounded-2xl shadow-lg border-4 border-white"
             />
           </div>
 

@@ -55,7 +55,7 @@ export default function StudentShell() {
   const firstName = user?.firstName || "Student";
 
   return (
-    <div style={{ fontFamily: "'Inter', sans-serif" }} className="flex h-screen w-full bg-slate-50 overflow-hidden">
+    <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }} className="flex h-screen w-full bg-slate-50 overflow-hidden">
       {sidebarOpen && (
         <div className="fixed inset-0 z-20 lg:hidden bg-black/40" onClick={() => setSidebarOpen(false)} />
       )}

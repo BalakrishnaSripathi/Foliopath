@@ -30,7 +30,7 @@ function pickLatestCourses(published) {
         toDate(b.publishedAt || b.createdDt) -
         toDate(a.publishedAt || a.createdDt)
     )
-    .slice(0, 3)
+    .slice(0, 4)
     .map((course, idx) => ({
       ...course,
       enrollmentCount:
@@ -50,7 +50,7 @@ function pickLatestKits(published) {
         toDate(b.publishedAt || b.createdDt) -
         toDate(a.publishedAt || a.createdDt)
     )
-    .slice(0, 3)
+    .slice(0, 4)
     .map((kit, idx) => ({
       ...kit,
       price: STATIC_PRICE,
@@ -90,11 +90,11 @@ function SectionHeader({ eyebrow, title, subtitle, to, linkLabel }) {
 
 function Skeleton() {
   return (
-    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
-      {[0, 1, 2].map((i) => (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
+      {[0, 1, 2, 3].map((i) => (
         <div key={i} className="rounded-2xl border border-slate-100 overflow-hidden animate-pulse">
-          <div className="h-48 bg-slate-100" />
-          <div className="p-6 space-y-3">
+          <div className="h-36 bg-slate-100" />
+          <div className="p-4 space-y-3">
             <div className="h-3 bg-slate-100 rounded w-1/3" />
             <div className="h-4 bg-slate-100 rounded w-3/4" />
             <div className="h-3 bg-slate-100 rounded w-1/2" />
@@ -132,24 +132,6 @@ export default function Courses() {
   return (
     <section id="courses" className="py-20 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div
-          data-aos="fade-up"
-          className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-12 gap-4"
-        >
-          <div>
-            <span className="text-xs font-bold text-[#00A86B] tracking-wider uppercase">
-              Catalog
-            </span>
-            <h2 className="text-3xl font-bold text-[#0B2545] mt-1">
-              Get choice of your course
-            </h2>
-            <p className="text-sm text-slate-500 mt-2 max-w-lg">
-              Fresh from the catalog — our latest courses and interview kits for
-              you to explore.
-            </p>
-          </div>
-        </div>
-
         {loading ? (
           <Skeleton />
         ) : (
@@ -171,7 +153,7 @@ export default function Courses() {
                   </p>
                 </div>
               ) : (
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
                   {courses.map((course, idx) => (
                     <div
                       key={course.id}
@@ -203,7 +185,7 @@ export default function Courses() {
                   </p>
                 </div>
               ) : (
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
                   {kits.map((kit, idx) => (
                     <div
                       key={kit.id}

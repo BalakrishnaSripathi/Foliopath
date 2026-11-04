@@ -123,7 +123,7 @@ export default function KitDetail() {
         setRelatedKits(
           kits
             .filter((k) => k.id != kitId)
-            .slice(0, 3)
+            .slice(0, 4)
             .map(enrichKit)
         );
       })
@@ -465,7 +465,7 @@ export default function KitDetail() {
                 Related Interview Kits
               </h2>
               {relatedKits.length > 0 ? (
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
                   {relatedKits.map((relKit) => (
                     <InterviewKitCard key={relKit.id} kit={relKit} />
                   ))}

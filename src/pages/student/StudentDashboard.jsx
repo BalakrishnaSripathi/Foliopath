@@ -888,7 +888,7 @@ export default function StudentDashboard() {
   const completed = enrollments.filter((e) => e.enrollmentStatus === "COMPLETED");
   const continueCourse = [...inProgress].sort((a, b) => (b.progressPercentage || 0) - (a.progressPercentage || 0))[0];
   const enrolledIds = new Set(enrollments.map((e) => e.courseId));
-  const newCourses = publishedCourses.filter((c) => !enrolledIds.has(c.id)).slice(0, 3);
+  const newCourses = publishedCourses.filter((c) => !enrolledIds.has(c.id)).slice(0, 4);
 
   const filteredMyCourses = enrollments.filter((e) => {
     if (myCoursesFilter === "IN_PROGRESS") return e.enrollmentStatus === "IN_PROGRESS" || e.enrollmentStatus === "ENROLLED";
@@ -1290,24 +1290,24 @@ export default function StudentDashboard() {
           <div className="flex items-center justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#00A86B]" /></div>
         ) : courseDetail ? (
           <div className="space-y-6">
-            <div className="bg-gradient-to-br from-[#0B2545] to-[#13315c] rounded-2xl p-6 text-white">
-              <div className="flex flex-col lg:flex-row gap-6">
+            <div className="bg-gradient-to-br from-[#0B2545] to-[#13315c] rounded-2xl p-4 text-white">
+              <div className="flex flex-col lg:flex-row gap-4">
                 <div className="flex-1">
                   <span className="text-xs font-bold text-[#00A86B] tracking-wider uppercase">{levelLabels[courseDetail.level] || "Course"}</span>
-                  <h1 className="text-2xl font-bold mt-2 mb-3">{courseDetail.title}</h1>
-                  <p className="text-slate-300 text-sm leading-relaxed mb-4">{courseDetail.shortDescription || courseDetail.description}</p>
-                  <div className="flex flex-wrap items-center gap-4 text-sm text-slate-300">
+                  <h1 className="text-xl font-bold mt-1.5 mb-2">{courseDetail.title}</h1>
+                  <p className="text-slate-300 text-sm leading-relaxed mb-3">{courseDetail.shortDescription || courseDetail.description}</p>
+                  <div className="flex flex-wrap items-center gap-3 text-sm text-slate-300">
                     <span className="flex items-center gap-1"><BookOpen className="w-4 h-4" />{courseModules.length + courseLinks.length} modules</span>
                     {courseDetail.level && <span className="flex items-center gap-1"><Clock className="w-4 h-4" />{levelLabels[courseDetail.level]}</span>}
                     {courseDetail.language && <span className="flex items-center gap-1"><Globe className="w-4 h-4" />{courseDetail.language}</span>}
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
-                  {courseDetail.thumbnailUrl && <img src={courseDetail.thumbnailUrl} alt={courseDetail.title} className="w-full lg:w-48 h-32 object-cover rounded-xl" />}
+                  {courseDetail.thumbnailUrl && <img src={courseDetail.thumbnailUrl} alt={courseDetail.title} className="w-full lg:w-40 h-24 object-cover rounded-lg" />}
                   {!isEnrolled && (
-                    <div className="bg-white rounded-2xl p-5 text-[#0B2545] shadow-xl lg:w-64 shrink-0">
+                    <div className="bg-white rounded-xl p-4 text-[#0B2545] shadow-xl lg:w-56 shrink-0">
                       <div className="flex items-baseline gap-2 mb-1">
-                        <span className="text-3xl font-black">₹{courseDetail.price || 0}</span>
+                        <span className="text-2xl font-black">₹{courseDetail.price || 0}</span>
                         {(courseDetail.price || 0) > 0 && (
                           <span className="text-sm text-slate-400 line-through">₹{courseDetail.originalPrice || Math.round((courseDetail.price || 0) * 2)}</span>
                         )}
@@ -1318,7 +1318,7 @@ export default function StudentDashboard() {
                       <button
                         onClick={handleEnrollOrBuy}
                         disabled={enrollingCourse || coursePaymentBusy}
-                        className="w-full py-3 bg-[#00A86B] hover:bg-[#008f5a] text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
+                        className="w-full py-2.5 bg-[#00A86B] hover:bg-[#008f5a] text-white text-sm font-bold rounded-lg shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         {coursePaymentBusy
                           ? "Adding..."
@@ -1615,8 +1615,8 @@ export default function StudentDashboard() {
               <h2 className="font-semibold text-slate-800">My Courses</h2>
               <button onClick={() => navigate("/StudentDashboard/my-courses")} className="text-[#00A86B] text-xs font-medium hover:underline">View All</button>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {enrollments.slice(0, 3).map((course, i) => {
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {enrollments.slice(0, 4).map((course, i) => {
                 const grad = COURSE_GRADIENTS[i % COURSE_GRADIENTS.length];
                 const levelStyle = LEVEL_COLORS[course.level] || LEVEL_COLORS.BEGINNER;
                 return (
@@ -1639,7 +1639,7 @@ export default function StudentDashboard() {
         {newCourses.length > 0 && (
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
             <div className="flex items-center justify-between mb-4"><h2 className="font-semibold text-slate-800">Recently Added</h2></div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {newCourses.map((course, i) => {
                 const grad = COURSE_GRADIENTS[(i + 3) % COURSE_GRADIENTS.length];
                 return (
@@ -1719,7 +1719,7 @@ export default function StudentDashboard() {
         {enrolledKits.length > 0 && (
           <div>
             <h2 className="font-semibold text-slate-800 mb-3">My Interview Kits</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {enrolledKits.map((kit) => (
                 <div
                   key={kit.kitId}
@@ -1763,7 +1763,7 @@ export default function StudentDashboard() {
               <p className="text-sm text-slate-500">Try a different search term.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {filteredAvailable.map((kit) => (
                 <div
                   key={kit.id}
@@ -1850,7 +1850,7 @@ export default function StudentDashboard() {
             <button onClick={() => navigate("/courses")} className="inline-flex items-center gap-2 bg-[#00A86B] hover:bg-[#008f5a] text-white font-semibold px-6 py-3 rounded-xl shadow-md hover:shadow-lg transition-all duration-200">Explore Courses</button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {enrollments.map((course) => {
               const unlocked = course.enrollmentStatus === "COMPLETED";
               const progress = course.progressPercentage || 0;
@@ -1994,7 +1994,7 @@ export default function StudentDashboard() {
             {enrollments.length === 0 && <button onClick={() => navigate("/courses")} className="inline-flex items-center gap-2 bg-[#00A86B] hover:bg-[#008f5a] text-white font-semibold px-6 py-3 rounded-xl transition-all">Browse Courses</button>}
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {filteredMyCourses.map((course, i) => {
               const grad = COURSE_GRADIENTS[i % COURSE_GRADIENTS.length];
               const levelStyle = LEVEL_COLORS[course.level] || LEVEL_COLORS.BEGINNER;
@@ -2035,7 +2035,7 @@ export default function StudentDashboard() {
             <p className="text-sm text-slate-500">Try a different search term.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {filteredAvailable.map((course, i) => {
               const enriched = enrichCourse(course, i);
               const grad = COURSE_GRADIENTS[(i + 1) % COURSE_GRADIENTS.length];

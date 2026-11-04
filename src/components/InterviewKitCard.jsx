@@ -50,7 +50,7 @@ export default function InterviewKitCard({ kit }) {
     <div className="bg-white rounded-2xl overflow-hidden border border-slate-100 shadow-sm hover:shadow-xl transition-all duration-300 group hover:-translate-y-1 h-full flex flex-col">
       <Link
         to={id ? `/interview-kits/${id}` : "/interview-kits"}
-        className="relative overflow-hidden h-48 block bg-gradient-to-br from-[#422006] to-[#78350f]"
+        className="relative overflow-hidden h-36 block bg-gradient-to-br from-[#422006] to-[#78350f]"
       >
         {image ? (
           <img
@@ -82,7 +82,7 @@ export default function InterviewKitCard({ kit }) {
         )}
       </Link>
 
-      <div className="p-6 space-y-4 flex flex-col flex-1">
+      <div className="p-4 space-y-3 flex flex-col flex-1">
         <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
           <span className="flex items-center gap-1.5">
             {typeof questionCount === "number" && (
@@ -109,7 +109,7 @@ export default function InterviewKitCard({ kit }) {
           )}
         </div>
 
-        <h3 className="text-lg font-bold text-[#0B2545] line-clamp-2 group-hover:text-[#B45309] transition-colors duration-200">
+        <h3 className="text-base font-bold text-[#0B2545] line-clamp-2 group-hover:text-[#B45309] transition-colors duration-200">
           {name}
         </h3>
 
@@ -117,10 +117,10 @@ export default function InterviewKitCard({ kit }) {
           <p className="text-xs text-slate-500 line-clamp-2">{description}</p>
         )}
 
-        <div className="pt-4 mt-auto border-t border-slate-100 flex items-end justify-between gap-3">
+        <div className="pt-3 mt-auto border-t border-slate-100 flex items-end justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-baseline gap-2 flex-wrap">
-              <span className="text-xl font-black text-[#0B2545]">
+              <span className="text-lg font-black text-[#0B2545]">
                 {displayPrice}
               </span>
               {hasDiscount && (
@@ -138,7 +138,7 @@ export default function InterviewKitCard({ kit }) {
           </div>
           <Link
             to={id ? `/interview-kits/${id}` : "/interview-kits"}
-            className="flex-shrink-0 px-4 py-2 bg-amber-50 text-[#B45309] hover:bg-[#B45309] hover:text-white rounded-lg text-sm font-semibold transition-all duration-200 hover:shadow-md active:scale-[0.97]"
+            className="flex-shrink-0 px-3 py-1.5 bg-amber-50 text-[#B45309] hover:bg-[#B45309] hover:text-white rounded-lg text-xs font-semibold transition-all duration-200 hover:shadow-md active:scale-[0.97]"
           >
             View Kit
           </Link>

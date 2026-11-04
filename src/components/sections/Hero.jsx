@@ -20,7 +20,7 @@ export default function Hero() {
             <h1
               data-aos="fade-right"
               data-aos-delay="200"
-              className="text-4xl sm:text-5xl lg:text-6xl font-black text-[#0B2545] tracking-tight leading-tight"
+              className="text-4xl sm:text-5xl lg:text-6xl font-display font-extrabold text-[#0B2545] tracking-tight leading-tight"
             >
               Foliopath 360 is the{" "}
               <span className="text-[#00A86B]">one stop</span> for all
