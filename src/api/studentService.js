@@ -6,6 +6,10 @@ export const getStudentDashboard = () => {
   return api.get("/api/student/dashboard");
 };
 
+export const getMyLearningActivity = (limit = 20) => {
+  return api.get("/api/student/my-learning-activity", { params: { limit } });
+};
+
 // ==================== STUDENT PROFILE ====================
 
 export const getStudentProfile = () => {
