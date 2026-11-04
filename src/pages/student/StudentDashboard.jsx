@@ -1515,11 +1515,6 @@ export default function StudentDashboard() {
                     <div className="bg-white rounded-xl p-4 text-[#0B2545] shadow-xl lg:w-56 shrink-0">
                       <div className="flex items-baseline gap-2 mb-1">
                         <span className="text-2xl font-black">₹{courseDetail.price || 0}</span>
-<<<<<<< HEAD
-=======
-
-                        <span className="text-3xl font-black">?{courseDetail.price || 0}</span>
->>>>>>> 7edd01128146930f99f66f35803214b01cac610f
                         {(courseDetail.price || 0) > 0 && (
                           <span className="text-sm text-slate-400 line-through">₹{courseDetail.originalPrice || Math.round((courseDetail.price || 0) * 2)}</span>
                         )}
@@ -1883,26 +1878,6 @@ export default function StudentDashboard() {
               );
             })}
           </div>
-<<<<<<< HEAD
-=======
-        )}
-        {enrollments.length > 0 && (
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-semibold text-slate-800">My Courses</h2>
-              <button onClick={() => navigate("/StudentDashboard/my-courses")} className="text-[#00A86B] text-xs font-medium hover:underline">View All</button>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {enrollments.slice(0, 4).map((course, i) => {
-                const grad = COURSE_GRADIENTS[i % COURSE_GRADIENTS.length];
-                const levelStyle = LEVEL_COLORS[course.level] || LEVEL_COLORS.BEGINNER;
-                return (
-                  <div key={course.courseId} className="rounded-xl border border-slate-100 overflow-hidden hover:shadow-md transition-shadow cursor-pointer" onClick={() => openCourseDetail(course.courseId)}>
-                    <div className="h-24 flex items-center justify-center relative overflow-hidden">
-                      {course.thumbnailUrl ? <img src={course.thumbnailUrl} alt={course.title} className="w-full h-full object-cover" /> : <div className={`w-full h-full bg-gradient-to-br ${grad.bg} flex items-center justify-center`}><span className="text-2xl font-black" style={{ color: grad.accent }}>{(course.title || "C").charAt(0)}</span></div>}
-                      <span className={`absolute top-2 right-2 text-[10px] font-semibold px-2 py-0.5 rounded-full ${STATUS_COLORS[course.enrollmentStatus] || "bg-slate-100 text-slate-500"}`}>{course.enrollmentStatus?.replace("_", " ")}</span>
-
->>>>>>> 7edd01128146930f99f66f35803214b01cac610f
         </div>
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           <div className="xl:col-span-2 space-y-6">
@@ -1924,28 +1899,6 @@ export default function StudentDashboard() {
                       <button onClick={() => openCourseDetail(dashContinueCourse.courseId)} className="mt-auto pt-4 inline-flex items-center gap-2 bg-[#00A86B] hover:bg-[#008f5a] text-white text-sm font-semibold px-5 py-2.5 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 w-fit"><PlayCircle size={18} />Continue Learning<ArrowRight size={16} /></button>
                     </div>
                   </div>
-<<<<<<< HEAD
-=======
-
-                );
-              })}
-            </div>
-          </div>
-        )}
-        {newCourses.length > 0 && (
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-            <div className="flex items-center justify-between mb-4"><h2 className="font-semibold text-slate-800">Recently Added</h2></div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {newCourses.map((course, i) => {
-                const grad = COURSE_GRADIENTS[(i + 3) % COURSE_GRADIENTS.length];
-                return (
-                  <div key={course.id} className="rounded-xl border border-slate-100 overflow-hidden hover:shadow-md transition-shadow cursor-pointer" onClick={() => openCourseDetail(course.id)}>
-                    <div className="h-24 flex items-center justify-center relative overflow-hidden">
-                      {course.thumbnailUrl ? <img src={course.thumbnailUrl} alt={course.title} className="w-full h-full object-cover" /> : <div className={`w-full h-full bg-gradient-to-br ${grad.bg} flex items-center justify-center`}><span className="text-2xl font-black" style={{ color: grad.accent }}>{(course.title || "N").charAt(0)}</span></div>}
-                      <span className="absolute top-2 right-2 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#00A86B] text-white">NEW</span>
-                    </div>
-                    <div className="p-3"><p className="text-xs font-semibold text-slate-800 leading-snug">{course.title}</p><p className="text-[10px] text-slate-400 mt-0.5">{course.language || "English"}</p></div>
->>>>>>> 7edd01128146930f99f66f35803214b01cac610f
                 </div>
               </div>
             ) : (
