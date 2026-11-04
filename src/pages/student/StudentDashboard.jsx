@@ -1514,11 +1514,9 @@ export default function StudentDashboard() {
                   {!isEnrolled && (
                     <div className="bg-white rounded-xl p-4 text-[#0B2545] shadow-xl lg:w-56 shrink-0">
                       <div className="flex items-baseline gap-2 mb-1">
-<<<<<<< HEAD
                         <span className="text-2xl font-black">₹{courseDetail.price || 0}</span>
-=======
+
                         <span className="text-3xl font-black">?{courseDetail.price || 0}</span>
->>>>>>> 9f6b1f5ad10a1c2e413ba3f67f0128ab9d8850aa
                         {(courseDetail.price || 0) > 0 && (
                           <span className="text-sm text-slate-400 line-through">?{courseDetail.originalPrice || Math.round((courseDetail.price || 0) * 2)}</span>
                         )}
@@ -1882,7 +1880,6 @@ export default function StudentDashboard() {
               );
             })}
           </div>
-<<<<<<< HEAD
         )}
         {enrollments.length > 0 && (
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
@@ -1899,7 +1896,7 @@ export default function StudentDashboard() {
                     <div className="h-24 flex items-center justify-center relative overflow-hidden">
                       {course.thumbnailUrl ? <img src={course.thumbnailUrl} alt={course.title} className="w-full h-full object-cover" /> : <div className={`w-full h-full bg-gradient-to-br ${grad.bg} flex items-center justify-center`}><span className="text-2xl font-black" style={{ color: grad.accent }}>{(course.title || "C").charAt(0)}</span></div>}
                       <span className={`absolute top-2 right-2 text-[10px] font-semibold px-2 py-0.5 rounded-full ${STATUS_COLORS[course.enrollmentStatus] || "bg-slate-100 text-slate-500"}`}>{course.enrollmentStatus?.replace("_", " ")}</span>
-=======
+
         </div>
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           <div className="xl:col-span-2 space-y-6">
@@ -1910,7 +1907,6 @@ export default function StudentDashboard() {
                   <div className="flex flex-col sm:flex-row gap-4">
                     <div className="w-full sm:w-48 lg:w-56 shrink-0 aspect-video rounded-xl overflow-hidden bg-slate-100">
                       {dashContinueCourse.thumbnailUrl ? <img src={dashContinueCourse.thumbnailUrl} alt={dashContinueCourse.title} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gradient-to-br from-[#0B2545] to-[#00A86B] flex items-center justify-center"><span className="text-3xl font-black text-white">{(dashContinueCourse.title || "C").charAt(0)}</span></div>}
->>>>>>> 9f6b1f5ad10a1c2e413ba3f67f0128ab9d8850aa
                     </div>
                     <div className="flex-1 min-w-0 flex flex-col">
                       <h3 className="text-base sm:text-lg font-bold text-[#0B2545] leading-snug">{dashContinueCourse.title}</h3>
@@ -1922,7 +1918,7 @@ export default function StudentDashboard() {
                       <button onClick={() => openCourseDetail(dashContinueCourse.courseId)} className="mt-auto pt-4 inline-flex items-center gap-2 bg-[#00A86B] hover:bg-[#008f5a] text-white text-sm font-semibold px-5 py-2.5 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 w-fit"><PlayCircle size={18} />Continue Learning<ArrowRight size={16} /></button>
                     </div>
                   </div>
-<<<<<<< HEAD
+
                 );
               })}
             </div>
@@ -1941,7 +1937,6 @@ export default function StudentDashboard() {
                       <span className="absolute top-2 right-2 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#00A86B] text-white">NEW</span>
                     </div>
                     <div className="p-3"><p className="text-xs font-semibold text-slate-800 leading-snug">{course.title}</p><p className="text-[10px] text-slate-400 mt-0.5">{course.language || "English"}</p></div>
-=======
                 </div>
               </div>
             ) : (
@@ -1972,7 +1967,6 @@ export default function StudentDashboard() {
                         </div>
                       );
                     })}
->>>>>>> 9f6b1f5ad10a1c2e413ba3f67f0128ab9d8850aa
                   </div>
                 </div>
               </div>
